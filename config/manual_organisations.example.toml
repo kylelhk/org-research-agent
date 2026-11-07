@@ -1,0 +1,9 @@
+# Copy this file to config/manual_organisations.private.toml and add organisations.
+# The private copy is git-ignored. Use one [[organisation]] block per entry.
+# Only "name" is required; leave out anything you do not know.
+
+[[organisation]]
+name = "Example Practice"
+type = "physiotherapy"
+suburb = "Example Suburb"
+website = "https://example.invalid"

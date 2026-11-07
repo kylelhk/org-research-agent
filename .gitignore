@@ -1,5 +1,5 @@
 # Private settings: fit criteria, prompts, and anything client-specific (AMBER data)
-config/settings.private.*
+config/*.private.*
 config/private/
 private/
 
