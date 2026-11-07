@@ -1,0 +1,40 @@
+# Private settings: fit criteria, prompts, and anything client-specific (AMBER data)
+config/settings.private.*
+config/private/
+private/
+
+# Run outputs: may contain organisation details, so never commit them
+output/
+runs/
+*.xlsx
+*.xls
+*.csv
+
+# Session records and logs from Claude Code runs
+*.log
+*.jsonl
+.claude/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# macOS and editors
+.DS_Store
+.idea/
+.vscode/

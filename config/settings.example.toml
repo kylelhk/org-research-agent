@@ -1,0 +1,17 @@
+# Copy this file to config/settings.private.toml and fill in the real values.
+# The private copy is git-ignored. Never commit client criteria or prompts.
+
+[area]
+# Placeholder values only; real values live in the private file.
+suburbs = ["Example Suburb"]
+radius_km = 3
+min_organisations = 10
+
+[fit]
+# Placeholder categories; the client's real criteria go in the private file.
+types = ["example type A", "example type B"]
+min_staff = 2
+
+[prompts]
+# Prompt text is loaded from the private file at run time.
+research = "REPLACE_IN_PRIVATE_FILE"
