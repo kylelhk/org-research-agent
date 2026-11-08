@@ -18,6 +18,7 @@ from datetime import date
 from pathlib import Path
 
 from docx import Document
+from docx.enum.section import WD_ORIENT
 from docx.enum.text import WD_COLOR_INDEX
 from docx.opc.constants import RELATIONSHIP_TYPE
 from docx.oxml import OxmlElement
@@ -32,8 +33,11 @@ HEADER_FILL = "DCE6F1"
 TEXT_WIDTH_CM = 17.0
 INLINE = re.compile(
     r"(?P<link>https://\S+)|(?P<placeholder>\[PLACEHOLDER[^\]]*\])"
-    r"|(?P<tag>\{\{[^}]*\}\})|`(?P<code>[^`]+)`"
+    r"|(?P<tag>\{\{[^}]*\}\})|`(?P<code>[^`]+)`|\*\*(?P<bold>[^*]+)\*\*"
 )
+NUMBERED = re.compile(r"\d+[.)]\s+")
+CHECKBOX = re.compile(r"[-*]\s+\[([ xX])\]\s+(.*)")
+LANDSCAPE_TEXT_WIDTH_CM = 25.7
 KIND_ORDER = {"guide": 0, "email": 1, "invitation": 2, "slides": 3}
 HOW_TO_REVIEW = [
     "Turn on Track Changes (Review > Track Changes) before editing, so every change is visible.",
@@ -101,6 +105,8 @@ def _add_inline(paragraph, text: str, bold: bool = False, size: Pt | None = None
             run.bold = True
         elif match.group("tag"):
             add(match.group("tag")).font.highlight_color = WD_COLOR_INDEX.GRAY_25
+        elif match.group("bold"):
+            add(match.group("bold")).bold = True
         else:
             add(match.group("code")).font.name = "Courier New"
         position = match.end()
@@ -119,10 +125,16 @@ def _blocks(markdown: str) -> list[tuple[str, str]]:
             blocks.append(("p", " ".join(paragraph)))
             paragraph.clear()
 
+    in_code = False
     for raw in markdown.splitlines():
         line = raw.rstrip()
         stripped = line.strip()
-        if not stripped:
+        if stripped.startswith("```"):
+            flush()
+            in_code = not in_code
+        elif in_code:
+            blocks.append(("code", line))
+        elif not stripped:
             flush()
         elif stripped.startswith("|"):
             flush()
@@ -130,9 +142,16 @@ def _blocks(markdown: str) -> list[tuple[str, str]]:
         elif match := re.match(r"(#{1,3})\s+(.*)", stripped):
             flush()
             blocks.append((f"h{len(match.group(1))}", match.group(2)))
+        elif box := CHECKBOX.match(stripped):
+            flush()
+            mark = "\u2611" if box.group(1) in "xX" else "\u2610"
+            blocks.append(("check", f"{mark} {box.group(2)}"))
         elif re.match(r"[-*]\s+", stripped):
             flush()
             blocks.append(("bullet", stripped[2:].strip()))
+        elif NUMBERED.match(stripped):
+            flush()
+            blocks.append(("number", stripped))
         elif line.startswith("  ") and blocks and blocks[-1][0] == "bullet" and not paragraph:
             kind, text = blocks.pop()
             blocks.append((kind, f"{text} {stripped}"))
@@ -142,7 +161,7 @@ def _blocks(markdown: str) -> list[tuple[str, str]]:
     return blocks
 
 
-def _table(document: Document, rows: list[str]) -> None:
+def _table(document: Document, rows: list[str], width_cm: float = TEXT_WIDTH_CM) -> None:
     cells = [
         [cell.strip() for cell in row.strip("|").split("|")]
         for row in rows
@@ -160,7 +179,7 @@ def _table(document: Document, rows: list[str]) -> None:
     weights = [
         min(max([len(row[i]) for row in cells if i < len(row)] + [4]), 45) for i in range(columns)
     ]
-    widths = [Cm(TEXT_WIDTH_CM * weight / sum(weights)) for weight in weights]
+    widths = [Cm(width_cm * weight / sum(weights)) for weight in weights]
 
     for index, values in enumerate(cells):
         row = table.add_row().cells
@@ -173,6 +192,15 @@ def _table(document: Document, rows: list[str]) -> None:
                 shading.set(qn("w:val"), "clear")
                 shading.set(qn("w:fill"), HEADER_FILL)
                 cell._tc.get_or_add_tcPr().append(shading)
+    # Set the grid and the total width too, so every viewer uses the same column sizes.
+    for column, width in zip(table.columns, widths, strict=True):
+        column.width = width
+    table_width = OxmlElement("w:tblW")
+    table_width.set(qn("w:type"), "dxa")
+    table_width.set(qn("w:w"), str(int(Cm(width_cm).twips)))
+    for existing in table._tbl.tblPr.findall(qn("w:tblW")):
+        table._tbl.tblPr.remove(existing)
+    table._tbl.tblPr.append(table_width)
     document.add_paragraph()
 
 
@@ -188,7 +216,16 @@ def _set_borders(table) -> None:
     table._tbl.tblPr.append(borders)
 
 
-def _write_markdown(document: Document, markdown: str, top_level: int) -> None:
+def _hanging(paragraph, indent_cm: float = 0.7) -> None:
+    """Indent a paragraph so wrapped lines line up under the first word."""
+    paragraph.paragraph_format.left_indent = Cm(indent_cm)
+    paragraph.paragraph_format.first_line_indent = Cm(-indent_cm)
+    paragraph.paragraph_format.space_after = Pt(2)
+
+
+def _write_markdown(
+    document: Document, markdown: str, top_level: int, width_cm: float = TEXT_WIDTH_CM
+) -> None:
     """Write Markdown blocks, with '#' headings one level below the section heading."""
     rows: list[str] = []
     for kind, text in _blocks(markdown):
@@ -196,12 +233,23 @@ def _write_markdown(document: Document, markdown: str, top_level: int) -> None:
             rows.append(text)
             continue
         if rows:
-            _table(document, rows)
+            _table(document, rows, width_cm)
             rows = []
         if kind.startswith("h"):
-            document.add_heading(text, level=min(top_level + int(kind[1]), 4))
+            document.add_heading(text, level=max(min(top_level + int(kind[1]), 4), 0))
         elif kind == "bullet":
             _add_inline(document.add_paragraph(style="List Bullet"), text)
+        elif kind in {"check", "number"}:
+            paragraph = document.add_paragraph()
+            _hanging(paragraph)
+            _add_inline(paragraph, text)
+        elif kind == "code":
+            paragraph = document.add_paragraph()
+            paragraph.paragraph_format.left_indent = Cm(0.7)
+            paragraph.paragraph_format.space_after = Pt(0)
+            run = paragraph.add_run(text)
+            run.font.name = "Courier New"
+            run.font.size = Pt(9.5)
         elif text.lower().startswith("subject:"):
             paragraph = document.add_paragraph()
             paragraph.add_run("Subject: ").bold = True
@@ -209,10 +257,10 @@ def _write_markdown(document: Document, markdown: str, top_level: int) -> None:
         else:
             _add_inline(document.add_paragraph(), text)
     if rows:
-        _table(document, rows)
+        _table(document, rows, width_cm)
 
 
-def _style(document: Document) -> None:
+def _style(document: Document, landscape: bool = False) -> None:
     styles = document.styles
     styles["Normal"].font.name = FONT
     styles["Normal"].font.size = Pt(11)
@@ -223,6 +271,9 @@ def _style(document: Document) -> None:
         styles[name].font.size = Pt(size)
     section = document.sections[0]
     section.page_height, section.page_width = Cm(29.7), Cm(21.0)
+    if landscape:
+        section.page_height, section.page_width = section.page_width, section.page_height
+        section.orientation = WD_ORIENT.LANDSCAPE
     for side in ("left_margin", "right_margin", "top_margin", "bottom_margin"):
         setattr(section, side, Cm(2))
 
