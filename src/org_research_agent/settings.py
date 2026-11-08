@@ -28,6 +28,9 @@ class AreaSettings:
     nearby_suburbs: tuple[str, ...] = ()
     # Optional: local place names that are fine in agent output (streets, centres).
     allowed_terms: tuple[str, ...] = ()
+    # Optional: the centre point for the map search. Without it, the map is skipped.
+    centre_lat: float | None = None
+    centre_lon: float | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,15 @@ def _optional_string_list(section: dict, section_name: str, key: str) -> tuple[s
     return tuple(item.strip() for item in value)
 
 
+def _optional_coordinate(section: dict, key: str, limit: float) -> float | None:
+    if key not in section:
+        return None
+    value = section[key]
+    if isinstance(value, bool) or not isinstance(value, int | float) or abs(value) > limit:
+        raise SettingsError(f"'{key}' in [area] must be a number between -{limit} and {limit}.")
+    return float(value)
+
+
 def _positive_number(section: dict, section_name: str, key: str) -> float:
     value = _value(section, section_name, key)
     if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
@@ -120,6 +132,8 @@ def load_settings(path: Path | str = DEFAULT_SETTINGS_PATH) -> Settings:
             min_organisations=int(_positive_number(area, "area", "min_organisations")),
             nearby_suburbs=_optional_string_list(area, "area", "nearby_suburbs"),
             allowed_terms=_optional_string_list(area, "area", "allowed_terms"),
+            centre_lat=_optional_coordinate(area, "centre_lat", 90),
+            centre_lon=_optional_coordinate(area, "centre_lon", 180),
         ),
         fit=FitSettings(
             types=_string_list(fit, "fit", "types"),

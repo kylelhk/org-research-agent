@@ -53,6 +53,23 @@ def test_optional_list_must_hold_strings(tmp_path):
         load_settings(write(tmp_path, text))
 
 
+def test_centre_is_optional(tmp_path):
+    settings = load_settings(write(tmp_path, VALID))
+    assert settings.area.centre_lat is None and settings.area.centre_lon is None
+
+
+def test_centre_is_read(tmp_path):
+    text = VALID.replace("radius_km = 3", "radius_km = 3\ncentre_lat = -1.5\ncentre_lon = 2.5")
+    settings = load_settings(write(tmp_path, text))
+    assert (settings.area.centre_lat, settings.area.centre_lon) == (-1.5, 2.5)
+
+
+def test_centre_out_of_range_is_rejected(tmp_path):
+    text = VALID.replace("radius_km = 3", "radius_km = 3\ncentre_lat = 95")
+    with pytest.raises(SettingsError, match="centre_lat"):
+        load_settings(write(tmp_path, text))
+
+
 def test_missing_file_gives_helpful_error(tmp_path):
     with pytest.raises(SettingsError, match="not found"):
         load_settings(tmp_path / "nope.toml")

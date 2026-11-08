@@ -10,6 +10,9 @@ min_organisations = 10
 nearby_suburbs = ["Nearby Suburb"]
 # Optional: local place names that may appear in agent output (streets, centres).
 allowed_terms = ["Example Highway"]
+# Optional: centre point for the OpenStreetMap search. Leave out to skip the map.
+centre_lat = -1.5
+centre_lon = 2.5
 
 [fit]
 # Placeholder categories; the client's real criteria go in the private file.
