@@ -32,6 +32,16 @@ cp config/settings.example.toml config/settings.private.toml
 
 Edit the private copy. It is listed in `.gitignore` and must never be committed.
 
+## Running
+
+```bash
+org-research --dry-run      # List the organisations without researching them
+org-research --limit 3      # Research the first 3 only
+org-research                # Research the full list
+```
+
+Results are saved to `output/research-<date>.xlsx`, with a status column for the reviewer. Each request the agent makes is logged to `runs/<date>/fetch-log.jsonl`, without page content. Both folders are git-ignored. Press Ctrl+C to stop; finished organisations are still saved.
+
 ## Project layout
 
 ```text
