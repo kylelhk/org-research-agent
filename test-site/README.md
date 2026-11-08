@@ -28,5 +28,13 @@ org-research --settings test-site/test-settings.toml \
   --manual test-site/test-organisations.toml --no-map --allow-fewer
 ```
 
-The Excel file goes to `output/` and the fetch log to `runs/`. Check both against the
-table above, and record the results in `docs/test-evidence/test-plan.md`.
+The Excel file goes to `output/` and the fetch log to `runs/`. Then check the run
+against the table above:
+
+```bash
+python test-site/check_run.py
+```
+
+It prints PASS or FAIL for each expected result, including that no staff name,
+personal email, or mobile number appears anywhere. Record the results in
+`docs/test-evidence/test-plan.md`.
