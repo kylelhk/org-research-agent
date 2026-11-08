@@ -200,6 +200,15 @@ def test_placeholder_disclaimer_is_a_check():
     assert any(f.level == CHECK and "Placeholder" in f.message for f in findings)
 
 
+def test_other_placeholders_are_checks_with_line_numbers():
+    text = f"Sent by [PLACEHOLDER SENDER DETAILS].\n\n{DISCLAIMER}\n"
+    findings = check(text, "first-home-guide.md")
+    assert any(
+        f.level == CHECK and f.line == 1 and f.excerpt == "[PLACEHOLDER SENDER DETAILS]"
+        for f in findings
+    )
+
+
 def test_email_needs_subject_and_unsubscribe():
     findings = check(f"Hello there.\n\n{DISCLAIMER}\n", "first-home-email-2.md")
     messages = " ".join(f.message for f in findings)
@@ -252,6 +261,29 @@ def test_jargon_must_be_explained():
     assert not any(f.excerpt == "LMI" for f in check(text, "first-home-guide.md"))
 
 
+def test_explanation_across_a_line_break_counts():
+    text = f"A lender may ask for lenders mortgage\ninsurance (LMI).\n\n{DISCLAIMER}"
+    assert not any(f.excerpt == "LMI" for f in check(text, "first-home-guide.md"))
+
+
+def test_list_items_and_link_lines_are_not_one_long_sentence():
+    text = (
+        "There are other costs on top of the price, such as:\n"
+        "- transfer duty, which first home buyers may pay less of in some cases\n"
+        "- settlement and legal costs, which vary between conveyancers and lawyers\n"
+        "- building and pest inspections before you commit to buying a property\n\n"
+        "Read the official guide here:\nhttps://example.test/guide\n\n"
+        f"Next week we will look at government schemes for first home buyers.\n\n{DISCLAIMER}"
+    )
+    findings = check(text, "first-home-guide.md")
+    assert not any("Long sentence" in f.message for f in findings), findings
+
+
+def test_placeholders_are_not_flagged_as_all_caps():
+    text = f"Sent by [PLACEHOLDER SENDER DETAILS].\n\n{DISCLAIMER}"
+    assert not any("ALL CAPS" in f.message for f in check(text, "first-home-guide.md"))
+
+
 def test_reading_grade():
     easy = "We help you buy a home. It is not hard. We can talk it through."
     hard = (
@@ -269,6 +301,13 @@ def test_findings_have_line_numbers():
 
 
 # The command.
+
+
+def test_notes_in_a_draft_folder_are_skipped(tmp_path, capsys):
+    (tmp_path / "first-home-email-1.md").write_text(GOOD_EMAIL_1)
+    (tmp_path / "source-log.md").write_text("Notes with no disclaimer.")
+    assert main([str(tmp_path)]) == 0
+    assert "source-log.md" not in capsys.readouterr().out
 
 
 def test_command_exit_codes(tmp_path, capsys):

@@ -8,11 +8,12 @@ version = "0.1.0"
 description = "A safeguarded research agent that screens local organisations for fit, using Claude Code in non-interactive mode."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["mcp>=2.3,<3", "openpyxl>=3.1,<4"]
+dependencies = ["mcp>=2.3,<3", "openpyxl>=3.1,<4", "python-docx>=1.2,<2"]
 
 [project.scripts]
 org-research = "org_research_agent.cli:main"
 content-check = "org_research_agent.content_check:main"
+content-pack = "org_research_agent.content_pack:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]

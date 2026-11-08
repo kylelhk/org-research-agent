@@ -16,6 +16,10 @@ Drafts are recognised by file name:
     *slides*, *presentation*
 A name containing "complex" marks the complex structures topic.
 Emails start with a "Subject:" line.
+
+It also reads Word review packs built by content-pack: each Heading 1 is one
+draft ("Guide", "Email 1", "Invitation"), other sections are skipped, and the
+pack must have no tracked changes left in it.
 """
 
 from __future__ import annotations
@@ -25,6 +29,10 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+from docx import Document
+from docx.oxml.ns import qn
+from docx.text.hyperlink import Hyperlink
 
 FAIL = "FAIL"
 CHECK = "CHECK"
@@ -194,6 +202,8 @@ OPT_OUT = re.compile(
 )
 ADVISER = re.compile(r"\baccountant\b|\b(?:licensed|financial|tax) adviser\b", re.IGNORECASE)
 FULL_LINK = re.compile(r"https://\S+")
+PLACEHOLDER_SPAN = re.compile(r"\[PLACEHOLDER[^\]]*\]|\{\{[^}]*\}\}")
+LIST_ITEM = re.compile(r"^\s*(?:[-*>]|\d+[.)])\s+")
 WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
 
 
@@ -236,21 +246,50 @@ def _syllables(word: str) -> int:
     return max(count, 1)
 
 
+def _plain(text: str) -> str:
+    """Text without the Subject line, links, placeholders, or template tags."""
+    text = re.sub(r"^Subject:.*$", "", text, flags=re.MULTILINE | re.IGNORECASE)
+    return PLACEHOLDER_SPAN.sub(" ", FULL_LINK.sub(" ", text))
+
+
+def sentences(text: str) -> list[str]:
+    """Split a draft into sentences for reading measures.
+
+    Blank lines, list items, and lines ending in a colon also end a sentence,
+    so a bullet list or "here is the link:" is not read as one long sentence.
+    Headings are left out, as they are not sentences.
+    """
+    units: list[str] = []
+    current: list[str] = []
+    for line in _plain(text).splitlines():
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or LIST_ITEM.match(line):
+            if current:
+                units.append(" ".join(current))
+                current = []
+            if LIST_ITEM.match(line):
+                units.append(LIST_ITEM.sub("", line))
+            continue
+        current.append(stripped)
+        if stripped.endswith(":"):
+            units.append(" ".join(current))
+            current = []
+    if current:
+        units.append(" ".join(current))
+    found = []
+    for unit in units:
+        found += [part for part in re.split(r"(?<=[.!?])\s+", unit) if WORD.search(part)]
+    return found
+
+
 def reading_grade(text: str) -> float:
     """Flesch-Kincaid grade level, a rough guide to reading difficulty."""
-    sentences = [s for s in re.split(r"[.!?]+\s|\n{2,}", text) if WORD.search(s)]
-    words = WORD.findall(text)
-    if not sentences or not words:
+    parts = sentences(text)
+    words = [word for part in parts for word in WORD.findall(part)]
+    if not parts or not words:
         return 0.0
     syllables = sum(_syllables(word) for word in words)
-    return 0.39 * len(words) / len(sentences) + 11.8 * syllables / len(words) - 15.59
-
-
-def _prose(text: str) -> str:
-    """Text without links, headings markup, or the Subject line, for reading measures."""
-    text = re.sub(r"^Subject:.*$", "", text, flags=re.MULTILINE | re.IGNORECASE)
-    text = FULL_LINK.sub("", text)
-    return re.sub(r"^[#>*\-\s]+", "", text, flags=re.MULTILINE)
+    return 0.39 * len(words) / len(parts) + 11.8 * syllables / len(words) - 15.59
 
 
 def check_draft(text: str, path: Path, disclaimer: str | None = None) -> list[Finding]:
@@ -275,7 +314,8 @@ def check_draft(text: str, path: Path, disclaimer: str | None = None) -> list[Fi
                 findings.append(
                     Finding(rule.level, rule.section, number, rule.message, match.group(0))
                 )
-        for word in re.findall(r"\b[A-Z]{4,}\b", line):
+        # Placeholders and template tags are meant to stand out, so they are skipped.
+        for word in re.findall(r"\b[A-Z]{4,}\b", PLACEHOLDER_SPAN.sub(" ", line)):
             if word not in ACRONYMS:
                 findings.append(
                     Finding(CHECK, "C", number, "ALL CAPS word. Use normal case.", word)
@@ -290,6 +330,13 @@ def _structure_findings(
 ) -> list[Finding]:
     findings = []
     lowered = text.lower()
+
+    # Other placeholders mark details only the business owner can supply.
+    for number, line in enumerate(lines, start=1):
+        for match in re.finditer(r"\[PLACEHOLDER (?!DISCLAIMER\])[^\]]*\]", line):
+            findings.append(
+                Finding(CHECK, "H", number, "Placeholder for the business owner.", match.group(0))
+            )
 
     if PLACEHOLDER_DISCLAIMER.lower() in lowered:
         findings.append(
@@ -333,41 +380,142 @@ def _structure_findings(
     if kind.kind == "invitation" and not OPT_OUT.search(text):
         findings.append(Finding(FAIL, "C", 0, "The invitation needs a way to opt out."))
 
-    prose = _prose(text)
-    words = WORD.findall(prose)
+    words = WORD.findall(_plain(text))
     if kind.kind == "guide" and len(words) > GUIDE_MAX_WORDS:
         findings.append(
             Finding(CHECK, "E", 0, f"{len(words)} words, which may not fit on one page.")
         )
     if kind.kind in {"guide", "email", "invitation"}:
-        grade = reading_grade(prose)
+        grade = reading_grade(text)
         if grade > READING_GRADE_MAX:
             findings.append(
                 Finding(CHECK, "D", 0, f"Reading level about Year {grade:.0f}. Aim for Year 9.")
             )
-        for sentence in re.split(r"(?<=[.!?])\s+", prose):
+        for sentence in sentences(text):
             if len(WORD.findall(sentence)) > LONG_SENTENCE_WORDS:
                 findings.append(
                     Finding(CHECK, "D", 0, "Long sentence. Consider splitting it.", sentence[:40])
                 )
+    # Explanations can wrap across lines, so compare with spacing flattened.
+    flat = " ".join(lowered.split())
     for term, explanation in JARGON.items():
-        if re.search(rf"\b{re.escape(term)}\b", text) and explanation.lower() not in lowered:
+        if re.search(rf"\b{re.escape(term)}\b", text) and explanation.lower() not in flat:
             findings.append(Finding(CHECK, "D", 0, "Term may need explaining.", term))
     return findings
 
 
-def check_paths(paths: list[Path], disclaimer: str | None = None) -> dict[Path, list[Finding]]:
+@dataclass
+class DraftResult:
+    label: str
+    kind: DraftKind
+    findings: list[Finding]
+    unit: str = "line"
+
+
+def _paragraph_text(paragraph) -> str:
+    """A Word paragraph's text, with any link whose text is not its address shown
+    as [text](address), so the hidden-link rule can catch it."""
+    parts = []
+    for item in paragraph.iter_inner_content():
+        if isinstance(item, Hyperlink):
+            text, address = item.text, item.address
+            parts.append(address if text.strip() == address else f"[{text}]({address})")
+        else:
+            parts.append(item.text)
+    return "".join(parts)
+
+
+def read_pack(path: Path) -> tuple[list[tuple[str, str, list[int]]], bool]:
+    """Split a Word review pack into (heading, text, paragraph numbers) per Heading 1.
+
+    Also reports whether the pack still has tracked changes, as the text of an
+    unaccepted change cannot be read reliably.
+    """
+    document = Document(str(path))
+    body = document.element.body
+    tracked = body.find(".//" + qn("w:ins")) is not None or (
+        body.find(".//" + qn("w:del")) is not None
+    )
+    sections: list[tuple[str, str, list[int]]] = []
+    heading: str | None = None
+    lines: list[str] = []
+    numbers: list[int] = []
+    count = 0
+    for paragraph in document.paragraphs:
+        style = paragraph.style.name if paragraph.style is not None else ""
+        if style == "Heading 1":
+            if heading is not None:
+                sections.append((heading, "\n".join(lines), numbers))
+            heading, lines, numbers, count = paragraph.text.strip(), [], [], 0
+            continue
+        if heading is None:
+            continue
+        count += 1
+        text = _paragraph_text(paragraph)
+        if style.startswith("List"):
+            lines.append(f"- {text}")
+            numbers.append(count)
+        else:
+            prefix = "## " if style.startswith("Heading") else ""
+            # A blank line after each paragraph keeps paragraphs apart for sentence checks.
+            lines += [prefix + text, ""]
+            numbers += [count, count]
+    if heading is not None:
+        sections.append((heading, "\n".join(lines), numbers))
+    return sections, tracked
+
+
+def _check_pack(path: Path, disclaimer: str | None) -> list[DraftResult]:
+    sections, tracked = read_pack(path)
+    if tracked:
+        message = "Tracked changes found. Accept or reject them all, then check again."
+        return [
+            DraftResult(path.name, DraftKind("pack", None, False), [Finding(FAIL, "H", 0, message)])
+        ]
+    results = []
+    for heading, text, numbers in sections:
+        # The pack's name says the topic; the heading says which draft it is.
+        name = Path(f"{path.stem}-{heading.lower().replace(' ', '-')}.md")
+        kind = kind_of(name)
+        if kind.kind == "other":
+            continue
+        findings = [
+            Finding(f.level, f.section, numbers[f.line - 1] if f.line else 0, f.message, f.excerpt)
+            for f in check_draft(text, name, disclaimer)
+        ]
+        results.append(DraftResult(f"{path.name} > {heading}", kind, findings, "paragraph"))
+    return results
+
+
+def check_paths(paths: list[Path], disclaimer: str | None = None) -> list[DraftResult]:
     files = []
     for path in paths:
         if path.is_dir():
-            files += sorted(p for p in path.rglob("*") if p.suffix.lower() in {".md", ".txt"})
+            # In a folder, only recognised drafts and Word packs are checked, so notes
+            # and logs kept alongside them are skipped. A named file is always checked.
+            files += sorted(
+                p
+                for p in path.rglob("*")
+                if not p.name.startswith("~$")
+                and (
+                    p.suffix.lower() == ".docx"
+                    or (p.suffix.lower() in {".md", ".txt"} and kind_of(p).kind != "other")
+                )
+            )
         else:
             files.append(path)
-    return {file: check_draft(file.read_text(), file, disclaimer) for file in files}
+    results = []
+    for file in files:
+        if file.suffix.lower() == ".docx":
+            results += _check_pack(file, disclaimer)
+        else:
+            findings = check_draft(file.read_text(), file, disclaimer)
+            results.append(DraftResult(file.name, kind_of(file), findings))
+    return results
 
 
-def _format(finding: Finding) -> str:
-    where = f"line {finding.line}" if finding.line else "whole draft"
+def _format(finding: Finding, unit: str = "line") -> str:
+    where = f"{unit} {finding.line}" if finding.line else "whole draft"
     excerpt = f' "{finding.excerpt}"' if finding.excerpt else ""
     return f"  {finding.level:<5} {finding.section}  {where}:{excerpt} {finding.message}"
 
@@ -386,18 +534,18 @@ def main(argv: list[str] | None = None) -> int:
 
     results = check_paths(args.paths, disclaimer)
     if not results:
-        print("No .md or .txt drafts found.")
+        print("No drafts found (.md, .txt, or a Word review pack).")
         return 1
 
     clean = checks_only = failed = fails = checks = 0
-    for path, findings in results.items():
-        kind = kind_of(path)
-        label = kind.kind + (f" {kind.number}" if kind.number else "")
-        print(f"{path.name} ({label})")
+    for result in results:
+        findings = result.findings
+        kind = result.kind.kind + (f" {result.kind.number}" if result.kind.number else "")
+        print(f"{result.label} ({kind})")
         if not findings:
             print("  PASS  no issues found")
         for finding in findings:
-            print(_format(finding))
+            print(_format(finding, result.unit))
         file_fails = sum(f.level == FAIL for f in findings)
         fails += file_fails
         checks += len(findings) - file_fails
