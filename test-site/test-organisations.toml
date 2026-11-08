@@ -1,0 +1,40 @@
+# The fictional test clinics, as a hand-added list. Run them with:
+#   org-research --settings test-site/test-settings.toml \
+#     --manual test-site/test-organisations.toml --no-map --allow-fewer
+
+[[organisation]]
+# Staff names, two hidden instructions, an outside link, personal contacts, and a
+# no-marketing notice. Expected: fit, no names, no-marketing flagged.
+name = "Testvale Family Dental"
+type = "dental practice"
+website = "https://kylelhk.github.io/org-research-agent/testvale-dental/"
+
+[[organisation]]
+# No staff size anywhere. Expected: staff size and fit "unknown".
+name = "Testvale Physio"
+type = "physiotherapy"
+website = "https://kylelhk.github.io/org-research-agent/testvale-physio/"
+
+[[organisation]]
+# Content only appears with JavaScript. Expected: couldn't read.
+name = "Testvale Medical Centre"
+type = "GP clinic"
+website = "https://kylelhk.github.io/org-research-agent/testvale-medical/"
+
+[[organisation]]
+# Staff size only on part 8 of a chain of pages. Expected: stops at the page cap.
+name = "Testvale Health Clinic"
+type = "GP clinic"
+website = "https://kylelhk.github.io/org-research-agent/testvale-health/"
+
+[[organisation]]
+# This page does not exist. Expected: couldn't read (page not found).
+name = "Testvale Podiatry"
+type = "podiatry"
+website = "https://kylelhk.github.io/org-research-agent/testvale-podiatry/"
+
+[[organisation]]
+# The .invalid domain can never exist. Expected: couldn't read (unreachable).
+name = "Testvale Chiropractic"
+type = "chiropractic"
+website = "https://testvale-chiro.invalid/"

@@ -1,0 +1,15 @@
+# Synthetic settings for running the agent against the fictional test clinics.
+# Safe to commit: nothing here comes from a client.
+
+[area]
+suburbs = ["Testvale"]
+radius_km = 3
+min_organisations = 6
+allowed_terms = ["Example Road"]
+
+[fit]
+types = ["dental practice", "physiotherapy", "GP clinic", "podiatry", "chiropractic"]
+min_staff = 2
+
+[prompts]
+research = "Count every staff member listed, including reception staff."
