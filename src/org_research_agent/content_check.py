@@ -1,7 +1,7 @@
 """Automated first pass over content drafts, before a person reviews them.
 
 It checks Markdown or text drafts against the mechanical parts of
-docs/content-review-checklist.md: advice and promise wording, rates and
+the content review checklist: advice and promise wording, rates and
 figures, pressure, unsafe links, missing disclaimers and opt-outs, and
 wording that assumes age, gender, or family. It cannot judge meaning or
 check facts, so a clean result means "ready for human review", not approved.
