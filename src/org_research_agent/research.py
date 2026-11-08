@@ -27,6 +27,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from org_research_agent.claude_runner import ClaudeError, ClaudeResult, run_claude
+from org_research_agent.fetch_summary import count_lines, describe_refusals, read_entries, summarise
 from org_research_agent.fetcher import is_same_site
 from org_research_agent.name_check import check_contact, check_for_names, check_source_url
 from org_research_agent.organisation import UNKNOWN, Organisation
@@ -148,6 +149,7 @@ class ResearchResult:
     notes: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
     agent_seconds: float = 0.0
+    fetch_counts: dict[str, int] = field(default_factory=dict)
 
 
 Runner = Callable[..., ClaudeResult]
@@ -466,9 +468,18 @@ def research_organisation(
 ) -> ResearchResult:
     """Research one organisation's website and return a checked spreadsheet row.
 
-    The time taken, including any retry, is recorded on the result.
+    The time taken, including any retry, is recorded on the result, along with what
+    the fetch log shows the agent asked for. Refused requests are noted on the row.
     """
+    log_path = Path(runs_dir) / "fetch-log.jsonl"
+    lines_before = count_lines(log_path)
     started = time.monotonic()
     result = _research(org, settings, runs_dir, runner, max_pages, today)
     result.agent_seconds = time.monotonic() - started
+
+    # What this organisation's run did, read from the lines it added to the fetch log.
+    result.fetch_counts = summarise(read_entries(log_path, lines_before))
+    refusals = describe_refusals(result.fetch_counts)
+    if refusals:
+        result.notes.append(refusals)
     return result

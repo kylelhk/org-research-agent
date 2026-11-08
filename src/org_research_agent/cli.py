@@ -17,6 +17,15 @@ from pathlib import Path
 
 from org_research_agent.claude_runner import run_claude
 from org_research_agent.excel import write_results
+from org_research_agent.fetch_summary import (
+    OTHER_WEBSITES,
+    PAGE_CAP,
+    PAGES_READ,
+    PROFILE_PAGES,
+    ROBOTS,
+    describe_refusals,
+    total,
+)
 from org_research_agent.manual import (
     DEFAULT_MANUAL_PATH,
     ManualListError,
@@ -128,5 +137,15 @@ def main(
         )
     print(f"Usage at list price: ${cost:.2f} (counts against the Claude plan, not billed)")
     print(f"Saved: {output_path}")
+    counts = total([result.fetch_counts for result in results])
+    print(
+        f"Pages read: {counts.get(PAGES_READ, 0)}. Requests refused: "
+        f"{counts.get(OTHER_WEBSITES, 0)} other websites, {counts.get(PROFILE_PAGES, 0)} "
+        f"staff profile pages, {counts.get(ROBOTS, 0)} by robots.txt, "
+        f"{counts.get(PAGE_CAP, 0)} over the page cap."
+    )
+    refused = [result.name for result in results if describe_refusals(result.fetch_counts)]
+    if refused:
+        print("Asked for something not allowed (see Notes): " + ", ".join(refused))
     print(f"Fetch log: {runs_dir / 'fetch-log.jsonl'}")
     return 130 if interrupted else 0

@@ -42,6 +42,8 @@ org-research                # Research the full list
 
 Results are saved to `output/research-<date>.xlsx`, with a status column for the reviewer. Each request the agent makes is logged to `runs/<date>/fetch-log.jsonl`, without page content. Both folders are git-ignored. Press Ctrl+C to stop; finished organisations are still saved.
 
+After each organisation, the run reads the new lines of the fetch log. If the agent asked for another website, a staff profile page, or a page robots.txt forbids, the request was refused and the organisation's row says so in the Notes column. The run summary shows the totals.
+
 Each Excel file also has a **Run info** sheet with the agent's time per organisation, and columns for the reviewer's checking and rework time. Once those are filled in, compare with a baseline:
 
 ```bash

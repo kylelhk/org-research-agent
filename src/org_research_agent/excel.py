@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
 
+from org_research_agent.fetch_summary import PAGES_READ, describe_refusals
 from org_research_agent.research import ResearchResult
 
 # Choices for the reviewer's status column.
@@ -42,6 +43,8 @@ TIMING_HEADINGS = [
     "Reviewer changed the rating? (Y/N)",
     "Reviewer rework time (min)",
     "Comments",
+    "Pages read",
+    "Requests refused",
 ]
 
 HEADER_FILL = PatternFill("solid", fgColor="DDEBF7")
@@ -117,9 +120,22 @@ def _write_run_info(workbook: Workbook, results: list[ResearchResult], run_label
         cell.fill = HEADER_FILL
         cell.alignment = Alignment(wrap_text=True, vertical="top")
     for result in results:
-        sheet.append([result.name, round(result.agent_seconds, 1), round(result.cost_usd, 2)])
+        counts = result.fetch_counts
+        sheet.append(
+            [
+                result.name,
+                round(result.agent_seconds, 1),
+                round(result.cost_usd, 2),
+                None,
+                None,
+                None,
+                None,
+                counts.get(PAGES_READ, 0),
+                describe_refusals(counts).removeprefix("refused by the safeguards: "),
+            ]
+        )
 
-    for column, width in zip("ABCDEFG", (40, 16, 18, 20, 22, 20, 40), strict=True):
+    for column, width in zip("ABCDEFGHI", (40, 16, 18, 20, 22, 20, 40, 12, 44), strict=True):
         sheet.column_dimensions[column].width = width
     dropdown = DataValidation(type="list", formula1='"Y,N"', allow_blank=True)
     dropdown.add(f"E{header_row + 1}:E{header_row + count + 50}")
