@@ -37,4 +37,4 @@ python test-site/check_run.py
 
 It prints PASS or FAIL for each expected result, including that no staff name,
 personal email, or mobile number appears anywhere. Record the results in
-`docs/test-evidence/test-plan.md`.
+the Test plan sheet of `docs/test-evidence/test-record.xlsx`.
