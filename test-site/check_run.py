@@ -163,15 +163,15 @@ def main() -> int:
     checker.info(f"Agent reached the cap and was refused: {'yes' if hit_cap else 'no'}")
 
     print("\nUnreadable sites")
-    for name, case in [
-        ("Testvale Medical Centre", "script-only page"),
-        ("Testvale Podiatry", "404 page"),
-        ("Testvale Chiropractic", ".invalid domain"),
+    for name, case, reason in [
+        ("Testvale Medical Centre", "script-only page", "needs JavaScript"),
+        ("Testvale Podiatry", "404 page", "page not found"),
+        ("Testvale Chiropractic", ".invalid domain", "unreachable"),
     ]:
         row = rows.get(name, {})
         checker.check(
-            row.get("Fit") == "couldn't read",
-            f"{name} ({case}) marked couldn't read (got '{row.get('Fit')}': {row.get('Reason')})",
+            row.get("Fit") == "couldn't read" and f"({reason})" in row.get("Reason", ""),
+            f"{name} ({case}) marked couldn't read ({reason}) (got: {row.get('Reason')})",
         )
 
     total = checker.passed + checker.failed

@@ -222,6 +222,7 @@ class PageFetcher:
         self.cache: dict[str, str] = {}
         self.robots: urllib.robotparser.RobotFileParser | None = None
         self.robots_blocks_all = False
+        self.site_unreachable = False
 
     def _log(self, url: str, outcome: str, status: int | None = None) -> None:
         if not self.log_path:
@@ -249,7 +250,11 @@ class PageFetcher:
             robots_url = f"{parts.scheme}://{parts.netloc}/robots.txt"
             try:
                 response = self.get(robots_url)
-            except (FetchFailed, OffSiteRedirect):
+            except FetchFailed:
+                # The whole site is down, which is different from robots.txt saying no.
+                self.site_unreachable = True
+                response = Response(status=0, content_type="", text="", final_url=robots_url)
+            except OffSiteRedirect:
                 response = Response(status=0, content_type="", text="", final_url=robots_url)
             parser = urllib.robotparser.RobotFileParser()
             if response.status == 200:
@@ -280,7 +285,11 @@ class PageFetcher:
         if self.pages_fetched >= self.max_pages:
             self._log(url, "blocked: page cap")
             return f"BLOCKED: the limit of {self.max_pages} pages is reached. Finish now."
-        if not self._robots_allows(url):
+        robots_allows = self._robots_allows(url)
+        if self.site_unreachable:
+            self._log(url, "error: unreachable")
+            return "ERROR: the website could not be reached."
+        if not robots_allows:
             self._log(url, "blocked: robots.txt")
             return "BLOCKED: the website's robots.txt does not allow reading this page."
 

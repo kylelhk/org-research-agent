@@ -179,11 +179,21 @@ def test_missing_robots_means_allowed():
     assert not fetcher.fetch("https://clinic.test/").startswith("BLOCKED")
 
 
-@pytest.mark.parametrize("status", [500, 503, "unreachable"])
-def test_robots_error_means_read_nothing(status):
+@pytest.mark.parametrize("status", [500, 503])
+def test_robots_server_error_means_read_nothing(status):
     fetcher, web = make({"https://clinic.test/": HOME}, robots_status=status)
     assert "robots.txt" in fetcher.fetch("https://clinic.test/")
     assert "https://clinic.test/" not in web.requested
+
+
+def test_unreachable_site_is_reported_as_unreachable_not_robots(tmp_path):
+    # Found in live run 1: a site that is down was reported as blocked by robots.txt.
+    fetcher, web = make(
+        {"https://clinic.test/": HOME}, robots_status="unreachable", tmp_path=tmp_path
+    )
+    assert fetcher.fetch("https://clinic.test/") == "ERROR: the website could not be reached."
+    assert "https://clinic.test/" not in web.requested
+    assert read_log(tmp_path)[-1]["outcome"] == "error: unreachable"
 
 
 # Staff profile pages.
