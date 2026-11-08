@@ -33,7 +33,7 @@ Each run's terminal summary, checker output, and spreadsheet are in `screenshots
 
 | # | Test | How to run | Pass looks like | Date | Result | Screenshot |
 |---|------|------------|-----------------|------|--------|------------|
-| 13 | Content review checklist | Check each guide, email, and slide against the checklist | Every item ticked, including the representative cases | | | |
+| 13 | Content review checklist | Check each guide, email, and slide against `docs/content-review-checklist.md` | Every item ticked, including the representative cases | | | |
 | 14 | Diana approval | Diana reviews the content | Written approval from Diana | | | |
 
 ## Email sequences (Brevo test account)
