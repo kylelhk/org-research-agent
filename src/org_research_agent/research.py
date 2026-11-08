@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import time
 import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -146,6 +147,7 @@ class ResearchResult:
     status: str
     notes: list[str] = field(default_factory=list)
     cost_usd: float = 0.0
+    agent_seconds: float = 0.0
 
 
 Runner = Callable[..., ClaudeResult]
@@ -387,7 +389,7 @@ def build_result(
     return result
 
 
-def research_organisation(
+def _research(
     org: Organisation,
     settings: Settings,
     runs_dir: Path,
@@ -395,7 +397,7 @@ def research_organisation(
     max_pages: int = DEFAULT_MAX_PAGES,
     today: str | None = None,
 ) -> ResearchResult:
-    """Research one organisation's website and return a checked spreadsheet row."""
+    """Do the research for one organisation (see research_organisation)."""
     today = today or date.today().isoformat()
     host = urlsplit(org.website).hostname if org.website else None
     if not host:
@@ -451,4 +453,22 @@ def research_organisation(
     result.status = STATUS_CHECK
     result.notes.append("the agent's answer failed checks twice: " + ", ".join(problems))
     result.cost_usd = cost
+    return result
+
+
+def research_organisation(
+    org: Organisation,
+    settings: Settings,
+    runs_dir: Path,
+    runner: Runner = run_claude,
+    max_pages: int = DEFAULT_MAX_PAGES,
+    today: str | None = None,
+) -> ResearchResult:
+    """Research one organisation's website and return a checked spreadsheet row.
+
+    The time taken, including any retry, is recorded on the result.
+    """
+    started = time.monotonic()
+    result = _research(org, settings, runs_dir, runner, max_pages, today)
+    result.agent_seconds = time.monotonic() - started
     return result

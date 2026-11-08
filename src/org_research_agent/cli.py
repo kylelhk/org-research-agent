@@ -108,19 +108,24 @@ def main(
                 org, settings, runs_dir, runner=runner, max_pages=args.max_pages
             )
             results.append(result)
-            print(f"{result.fit} ({result.status})")
+            print(f"{result.fit} ({result.status}, {result.agent_seconds:.0f}s)")
     except KeyboardInterrupt:
         # Ctrl+C stops the run, but the organisations already done are still saved.
         interrupted = True
         print("\nStopped. Saving the organisations finished so far.")
 
-    write_results(results, output_path)
+    write_results(results, output_path, run_label=stamp)
     fits = Counter(result.fit for result in results)
     checks = sum(result.status == STATUS_CHECK for result in results)
     cost = sum(result.cost_usd for result in results)
     print()
     print("Results: " + ", ".join(f"{count} {fit}" for fit, count in sorted(fits.items())))
     print(f"Needs manual check: {checks}")
+    seconds = sum(result.agent_seconds for result in results)
+    if results:
+        print(
+            f"Agent time: {seconds:.0f}s in total, {seconds / len(results):.0f}s per organisation"
+        )
     print(f"Usage at list price: ${cost:.2f} (counts against the Claude plan, not billed)")
     print(f"Saved: {output_path}")
     print(f"Fetch log: {runs_dir / 'fetch-log.jsonl'}")

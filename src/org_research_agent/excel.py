@@ -31,11 +31,24 @@ COLUMNS = [
     ("Notes", 45, lambda r: "\n".join(r.notes)),
 ]
 
+# The Run info sheet records timing, and leaves columns for the reviewer's time, so
+# every comparison with the baseline is made the same way.
+RUN_INFO_SHEET = "Run info"
+TIMING_HEADINGS = [
+    "Organisation",
+    "Agent time (s)",
+    "Usage at list price ($)",
+    "Reviewer check time (min)",
+    "Reviewer changed the rating? (Y/N)",
+    "Reviewer rework time (min)",
+    "Comments",
+]
+
 HEADER_FILL = PatternFill("solid", fgColor="DDEBF7")
 CHECK_FILL = PatternFill("solid", fgColor="FCE4D6")
 
 
-def write_results(results: list[ResearchResult], path: Path | str) -> Path:
+def write_results(results: list[ResearchResult], path: Path | str, run_label: str = "") -> Path:
     """Save results as a formatted spreadsheet and return its path."""
     path = Path(path)
     workbook = Workbook()
@@ -70,6 +83,44 @@ def write_results(results: list[ResearchResult], path: Path | str) -> Path:
     dropdown.add(f"{letter}2:{letter}{max(sheet.max_row, 2) + 200}")
     sheet.add_data_validation(dropdown)
 
+    _write_run_info(workbook, results, run_label)
+
     path.parent.mkdir(parents=True, exist_ok=True)
     workbook.save(path)
     return path
+
+
+def _write_run_info(workbook: Workbook, results: list[ResearchResult], run_label: str) -> None:
+    sheet = workbook.create_sheet(RUN_INFO_SHEET)
+    total_seconds = sum(r.agent_seconds for r in results)
+    count = len(results)
+    summary = [
+        ("Run", run_label),
+        ("Organisations researched", count),
+        ("Total agent time (s)", round(total_seconds, 1)),
+        (
+            "Average agent time per organisation (s)",
+            round(total_seconds / count, 1) if count else 0,
+        ),
+        ("Usage at list price ($)", round(sum(r.cost_usd for r in results), 2)),
+        ("Needs manual check", sum(r.status == "needs manual check" for r in results)),
+    ]
+    for label, value in summary:
+        sheet.append([label, value])
+        sheet.cell(row=sheet.max_row, column=1).font = Font(bold=True)
+
+    sheet.append([])
+    sheet.append(TIMING_HEADINGS)
+    header_row = sheet.max_row
+    for cell in sheet[header_row]:
+        cell.font = Font(bold=True)
+        cell.fill = HEADER_FILL
+        cell.alignment = Alignment(wrap_text=True, vertical="top")
+    for result in results:
+        sheet.append([result.name, round(result.agent_seconds, 1), round(result.cost_usd, 2)])
+
+    for column, width in zip("ABCDEFG", (40, 16, 18, 20, 22, 20, 40), strict=True):
+        sheet.column_dimensions[column].width = width
+    dropdown = DataValidation(type="list", formula1='"Y,N"', allow_blank=True)
+    dropdown.add(f"E{header_row + 1}:E{header_row + count + 50}")
+    sheet.add_data_validation(dropdown)

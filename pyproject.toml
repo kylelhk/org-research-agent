@@ -14,6 +14,7 @@ dependencies = ["mcp>=2.3,<3", "openpyxl>=3.1,<4", "python-docx>=1.2,<2"]
 org-research = "org_research_agent.cli:main"
 content-check = "org_research_agent.content_check:main"
 content-pack = "org_research_agent.content_pack:main"
+baseline-report = "org_research_agent.baseline_report:main"
 md-to-docx = "org_research_agent.docs_word:main"
 
 [project.optional-dependencies]

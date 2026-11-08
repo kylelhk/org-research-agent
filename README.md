@@ -42,6 +42,14 @@ org-research                # Research the full list
 
 Results are saved to `output/research-<date>.xlsx`, with a status column for the reviewer. Each request the agent makes is logged to `runs/<date>/fetch-log.jsonl`, without page content. Both folders are git-ignored. Press Ctrl+C to stop; finished organisations are still saved.
 
+Each Excel file also has a **Run info** sheet with the agent's time per organisation, and columns for the reviewer's checking and rework time. Once those are filled in, compare with a baseline:
+
+```bash
+baseline-report output/research-<date>.xlsx --baseline-min <baseline minutes per organisation>
+```
+
+The method is in [`docs/baseline-comparison-method.docx`](docs/baseline-comparison-method.docx). Known limits and readiness are in [`docs/limitations-and-readiness.docx`](docs/limitations-and-readiness.docx).
+
 ## Content tools
 
 ```bash
@@ -49,7 +57,7 @@ content-pack private/content/first-home --title "First home" --draft 1   # Build
 content-check private/content/first-home                                  # First automated pass, Word packs included
 ```
 
-A review pack holds one topic's guide and emails, its source log, and a sign-off table. Reviewers edit it in Word with Track Changes. `content-check` reads the pack directly once changes are accepted. A clean result means ready for human review, not approved. The full review steps are in [`docs/content-review-checklist.md`](docs/content-review-checklist.md).
+A review pack holds one topic's guide and emails, its source log, and a sign-off table. Reviewers edit it in Word with Track Changes. `content-check` reads the pack directly once changes are accepted. A clean result means ready for human review, not approved. The full review steps are in [`docs/content-review-checklist.docx`](docs/content-review-checklist.docx).
 
 ## Project layout
 
