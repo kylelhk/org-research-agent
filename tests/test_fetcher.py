@@ -265,6 +265,26 @@ def test_page_without_closing_head_tag_is_still_read():
     assert "p{}" not in result
 
 
+def test_evidence_keeps_only_name_free_sentences(tmp_path):
+    page = (
+        "<p>Clinic Dental has five dentists. Dr Patel leads the team. "
+        "Sarah Whitfield is our hygienist. We are open six days a week.</p>"
+    )
+    evidence = tmp_path / "evidence.jsonl"
+    fetcher = PageFetcher(
+        HOST,
+        5,
+        get=FakeWeb({"https://clinic.test/": page}),
+        evidence_path=evidence,
+        allowed_terms=("Clinic Dental",),
+    )
+    fetcher.fetch("https://clinic.test/")
+    saved = [json.loads(line) for line in evidence.read_text().splitlines()]
+    assert "Clinic Dental has five dentists." in saved
+    assert "We are open six days a week." in saved
+    assert not any("Patel" in s or "Sarah" in s or "Whitfield" in s for s in saved)
+
+
 def test_log_has_no_page_content(tmp_path):
     fetcher, _ = make({"https://clinic.test/": HOME}, tmp_path=tmp_path)
     fetcher.fetch("https://clinic.test/")

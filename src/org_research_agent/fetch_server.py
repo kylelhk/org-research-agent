@@ -39,9 +39,19 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--host", required=True, help="The organisation's website host.")
     parser.add_argument("--max-pages", type=int, required=True)
     parser.add_argument("--log", required=True, help="Where to append the fetch log.")
+    parser.add_argument("--evidence", help="Where to save name-free sentences for checking.")
+    parser.add_argument(
+        "--allowed-term", action="append", default=[], help="Org name or place that is fine."
+    )
     args = parser.parse_args(argv)
 
-    fetcher = PageFetcher(args.host, args.max_pages, args.log)
+    fetcher = PageFetcher(
+        args.host,
+        args.max_pages,
+        args.log,
+        evidence_path=args.evidence,
+        allowed_terms=tuple(args.allowed_term),
+    )
     build_server(fetcher).run()
 
 

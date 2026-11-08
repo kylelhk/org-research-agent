@@ -31,6 +31,28 @@ def test_loads_valid_settings(tmp_path):
     assert settings.prompts.research == "Synthetic prompt for tests."
 
 
+def test_optional_lists_default_to_empty(tmp_path):
+    settings = load_settings(write(tmp_path, VALID))
+    assert settings.area.nearby_suburbs == ()
+    assert settings.area.allowed_terms == ()
+
+
+def test_optional_lists_are_read(tmp_path):
+    text = VALID.replace(
+        "min_organisations = 10",
+        'min_organisations = 10\nnearby_suburbs = ["Northtown"]\nallowed_terms = ["Main Road"]',
+    )
+    settings = load_settings(write(tmp_path, text))
+    assert settings.area.nearby_suburbs == ("Northtown",)
+    assert settings.area.allowed_terms == ("Main Road",)
+
+
+def test_optional_list_must_hold_strings(tmp_path):
+    text = VALID.replace("min_organisations = 10", "min_organisations = 10\nnearby_suburbs = [1]")
+    with pytest.raises(SettingsError, match="nearby_suburbs"):
+        load_settings(write(tmp_path, text))
+
+
 def test_missing_file_gives_helpful_error(tmp_path):
     with pytest.raises(SettingsError, match="not found"):
         load_settings(tmp_path / "nope.toml")

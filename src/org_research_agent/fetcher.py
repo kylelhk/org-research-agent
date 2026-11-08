@@ -17,6 +17,7 @@ contain a name are redacted in the log.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 import urllib.robotparser
@@ -27,7 +28,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-from org_research_agent.name_check import check_source_url
+from org_research_agent.name_check import check_for_names, check_source_url
 
 USER_AGENT = "OrgResearchAgent/0.1"
 TIMEOUT_S = 15
@@ -35,6 +36,7 @@ MAX_BYTES = 2_000_000
 MAX_TEXT_CHARS = 20_000
 MIN_READABLE_CHARS = 80
 READABLE_TYPES = {"text/html", "text/plain", "application/xhtml+xml"}
+SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 
 class FetchFailed(Exception):
@@ -207,10 +209,14 @@ class PageFetcher:
         max_pages: int,
         log_path: Path | str | None = None,
         get: Callable[[str], Response] | None = None,
+        evidence_path: Path | str | None = None,
+        allowed_terms: tuple[str, ...] = (),
     ):
         self.allowed_host = normalise_host(allowed_host)
         self.max_pages = max_pages
         self.log_path = Path(log_path) if log_path else None
+        self.evidence_path = Path(evidence_path) if evidence_path else None
+        self.allowed_terms = allowed_terms
         self.get = get or (lambda url: urllib_get(url, self.allowed_host))
         self.pages_fetched = 0
         self.cache: dict[str, str] = {}
@@ -299,6 +305,24 @@ class PageFetcher:
         self.cache[url] = result
         return result
 
+    def _save_evidence(self, text: str) -> None:
+        """Keep sentences that pass the name check, so quotes can be verified later.
+
+        Sentences that might contain a name are dropped, so names never reach disk.
+        """
+        if not self.evidence_path:
+            return
+        kept = []
+        for line in text.splitlines():
+            for sentence in SENTENCE_END.split(line):
+                sentence = sentence.strip()
+                if len(sentence) >= 10 and not check_for_names(sentence, self.allowed_terms).found:
+                    kept.append(sentence)
+        self.evidence_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.evidence_path.open("a") as file:
+            for sentence in kept:
+                file.write(json.dumps(sentence) + "\n")
+
     def _to_agent_text(self, response: Response) -> str:
         if response.content_type == "text/plain":
             title, text, links, off_site, hidden = "", response.text, [], 0, False
@@ -314,6 +338,7 @@ class PageFetcher:
             return "ERROR: the page has no readable text. It may need JavaScript."
 
         self._log(response.final_url, "fetched", response.status)
+        self._save_evidence(title + "\n" + text)
         notes = [f"Pages left: {self.max_pages - self.pages_fetched}."]
         if hidden:
             notes.append("Hidden content was removed.")

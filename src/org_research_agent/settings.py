@@ -24,6 +24,10 @@ class AreaSettings:
     suburbs: tuple[str, ...]
     radius_km: float
     min_organisations: int
+    # Optional: other suburbs a nearby organisation may list as its address.
+    nearby_suburbs: tuple[str, ...] = ()
+    # Optional: local place names that are fine in agent output (streets, centres).
+    allowed_terms: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,17 @@ def _string_list(section: dict, section_name: str, key: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in value)
 
 
+def _optional_string_list(section: dict, section_name: str, key: str) -> tuple[str, ...]:
+    if key not in section:
+        return ()
+    value = section[key]
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and item.strip() for item in value
+    ):
+        raise SettingsError(f"'{key}' in [{section_name}] must be a list of strings.")
+    return tuple(item.strip() for item in value)
+
+
 def _positive_number(section: dict, section_name: str, key: str) -> float:
     value = _value(section, section_name, key)
     if isinstance(value, bool) or not isinstance(value, int | float) or value <= 0:
@@ -103,6 +118,8 @@ def load_settings(path: Path | str = DEFAULT_SETTINGS_PATH) -> Settings:
             suburbs=_string_list(area, "area", "suburbs"),
             radius_km=_positive_number(area, "area", "radius_km"),
             min_organisations=int(_positive_number(area, "area", "min_organisations")),
+            nearby_suburbs=_optional_string_list(area, "area", "nearby_suburbs"),
+            allowed_terms=_optional_string_list(area, "area", "allowed_terms"),
         ),
         fit=FitSettings(
             types=_string_list(fit, "fit", "types"),

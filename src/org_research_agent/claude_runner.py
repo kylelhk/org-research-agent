@@ -28,33 +28,43 @@ class ClaudeError(Exception):
 class ClaudeResult:
     text: str
     cost_usd: float
+    # The parsed answer when a JSON schema was given, otherwise None.
+    structured: dict | None = None
 
 
-def build_mcp_config(host: str, max_pages: int, fetch_log: Path) -> dict:
+def build_mcp_config(
+    host: str,
+    max_pages: int,
+    fetch_log: Path,
+    evidence_path: Path | None = None,
+    allowed_terms: tuple[str, ...] = (),
+) -> dict:
     """The MCP config that starts our fetch server for one organisation."""
-    return {
-        "mcpServers": {
-            SERVER_NAME: {
-                "command": sys.executable,
-                "args": [
-                    "-m",
-                    "org_research_agent.fetch_server",
-                    "--host",
-                    host,
-                    "--max-pages",
-                    str(max_pages),
-                    "--log",
-                    str(fetch_log.resolve()),
-                ],
-            }
-        }
-    }
+    args = [
+        "-m",
+        "org_research_agent.fetch_server",
+        "--host",
+        host,
+        "--max-pages",
+        str(max_pages),
+        "--log",
+        str(fetch_log.resolve()),
+    ]
+    if evidence_path:
+        args += ["--evidence", str(evidence_path.resolve())]
+    for term in allowed_terms:
+        args += ["--allowed-term", term]
+    return {"mcpServers": {SERVER_NAME: {"command": sys.executable, "args": args}}}
 
 
 def build_command(
-    prompt: str, mcp_config_path: Path, max_budget_usd: float = DEFAULT_MAX_BUDGET_USD
+    prompt: str,
+    mcp_config_path: Path,
+    max_budget_usd: float = DEFAULT_MAX_BUDGET_USD,
+    json_schema: dict | None = None,
 ) -> list[str]:
     """Build the locked-down command line for one call."""
+    schema_args = ["--json-schema", json.dumps(json_schema)] if json_schema else []
     return [
         "claude",
         "-p",
@@ -76,6 +86,7 @@ def build_command(
         str(max_budget_usd),
         "--output-format",
         "json",
+        *schema_args,
     ]
 
 
@@ -86,13 +97,23 @@ def run_claude(
     fetch_log: Path | str,
     timeout_s: int = DEFAULT_TIMEOUT_S,
     max_budget_usd: float = DEFAULT_MAX_BUDGET_USD,
+    json_schema: dict | None = None,
+    evidence_path: Path | str | None = None,
+    allowed_terms: tuple[str, ...] = (),
 ) -> ClaudeResult:
     """Send one prompt to Claude Code, letting it read only the given website."""
     # An empty temporary folder means there is nothing local for Claude to find.
     with tempfile.TemporaryDirectory() as workdir:
         config_path = Path(workdir) / "mcp.json"
-        config_path.write_text(json.dumps(build_mcp_config(host, max_pages, Path(fetch_log))))
-        command = build_command(prompt, config_path, max_budget_usd)
+        config = build_mcp_config(
+            host,
+            max_pages,
+            Path(fetch_log),
+            Path(evidence_path) if evidence_path else None,
+            allowed_terms,
+        )
+        config_path.write_text(json.dumps(config))
+        command = build_command(prompt, config_path, max_budget_usd, json_schema)
         try:
             completed = subprocess.run(
                 command, cwd=workdir, capture_output=True, text=True, timeout=timeout_s
@@ -112,4 +133,8 @@ def run_claude(
     if completed.returncode != 0 or data.get("is_error"):
         raise ClaudeError(f"Claude Code reported an error: {data.get('subtype', 'unknown')}.")
 
-    return ClaudeResult(text=data.get("result", ""), cost_usd=data.get("total_cost_usd", 0.0))
+    return ClaudeResult(
+        text=data.get("result", ""),
+        cost_usd=data.get("total_cost_usd", 0.0),
+        structured=data.get("structured_output"),
+    )

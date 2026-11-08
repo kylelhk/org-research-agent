@@ -47,6 +47,29 @@ def test_command_allows_only_our_fetch_tool(tmp_path):
     assert command[command.index("--allowedTools") + 1] == "mcp__fetcher__fetch_page"
 
 
+def test_json_schema_is_passed_after_the_program_name(tmp_path):
+    schema = {"type": "object"}
+    command = build_command("hello", tmp_path / "mcp.json", json_schema=schema)
+    assert command[0] == "claude"
+    assert json.loads(command[command.index("--json-schema") + 1]) == schema
+
+
+def test_structured_answer_is_returned(monkeypatch, tmp_path):
+    reply = {"result": "{}", "total_cost_usd": 0.01, "structured_output": {"a": 1}}
+    patch_run(monkeypatch, json.dumps(reply))
+    result = run_claude("hi", "clinic.test", 4, tmp_path / "log.jsonl", json_schema={})
+    assert result.structured == {"a": 1}
+
+
+def test_mcp_config_passes_evidence_path_and_allowed_terms(tmp_path):
+    config = build_mcp_config(
+        "clinic.test", 4, tmp_path / "log.jsonl", tmp_path / "ev.jsonl", ("Clinic", "Testville")
+    )
+    args = config["mcpServers"]["fetcher"]["args"]
+    assert args[args.index("--evidence") + 1] == str((tmp_path / "ev.jsonl").resolve())
+    assert args.count("--allowed-term") == 2
+
+
 def test_mcp_config_passes_site_cap_and_log(tmp_path):
     config = build_mcp_config("clinic.test", 4, tmp_path / "log.jsonl")
     args = config["mcpServers"]["fetcher"]["args"]

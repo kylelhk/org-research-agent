@@ -6,6 +6,10 @@
 suburbs = ["Example Suburb"]
 radius_km = 3
 min_organisations = 10
+# Optional: other suburbs an organisation in range may list as its address.
+nearby_suburbs = ["Nearby Suburb"]
+# Optional: local place names that may appear in agent output (streets, centres).
+allowed_terms = ["Example Highway"]
 
 [fit]
 # Placeholder categories; the client's real criteria go in the private file.
@@ -13,5 +17,5 @@ types = ["example type A", "example type B"]
 min_staff = 2
 
 [prompts]
-# Prompt text is loaded from the private file at run time.
+# Extra guidance added to the research prompt, loaded from the private file.
 research = "REPLACE_IN_PRIVATE_FILE"
