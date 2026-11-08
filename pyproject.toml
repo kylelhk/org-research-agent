@@ -12,6 +12,7 @@ dependencies = ["mcp>=2.3,<3", "openpyxl>=3.1,<4"]
 
 [project.scripts]
 org-research = "org_research_agent.cli:main"
+content-check = "org_research_agent.content_check:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.5"]

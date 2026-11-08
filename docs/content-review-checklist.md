@@ -8,7 +8,7 @@ This file is the general checklist and is safe to publish. The drafts themselves
 
 | Step | Who | Done when |
 |------|-----|-----------|
-| 1. Automated check (if available) | Consultant | No flagged phrases left unexplained |
+| 1. Automated check: `content-check private/content` | Consultant | No FAIL, and every CHECK confirmed or fixed |
 | 2. Review against sections A to H below | Consultant | Every box ticked, or a fix made and the item rechecked |
 | 3. Read through the representative cases | Consultant | Every case answered |
 | 4. Fact-check against current sources | Business owner | Source recorded for every fact |
