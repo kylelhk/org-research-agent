@@ -42,6 +42,15 @@ org-research                # Research the full list
 
 Results are saved to `output/research-<date>.xlsx`, with a status column for the reviewer. Each request the agent makes is logged to `runs/<date>/fetch-log.jsonl`, without page content. Both folders are git-ignored. Press Ctrl+C to stop; finished organisations are still saved.
 
+## Content tools
+
+```bash
+content-pack private/content/first-home --title "First home" --draft 1   # Build a Word review pack from drafts
+content-check private/content/first-home                                  # First automated pass, Word packs included
+```
+
+A review pack holds one topic's guide and emails, its source log, and a sign-off table. Reviewers edit it in Word with Track Changes. `content-check` reads the pack directly once changes are accepted. A clean result means ready for human review, not approved. The full review steps are in [`docs/content-review-checklist.md`](docs/content-review-checklist.md).
+
 ## Project layout
 
 ```text
