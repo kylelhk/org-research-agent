@@ -14,6 +14,7 @@ from pathlib import Path
 PAGES_READ = "pages_read"
 OTHER_WEBSITES = "other_websites"
 PROFILE_PAGES = "profile_pages"
+TEAM_PAGES = "team_pages"
 ROBOTS = "robots"
 PAGE_CAP = "page_cap"
 ERRORS = "errors"
@@ -23,6 +24,7 @@ OUTCOME_GROUPS = {
     "blocked: off-site": OTHER_WEBSITES,
     "blocked: off-site redirect": OTHER_WEBSITES,
     "blocked: staff profile page": PROFILE_PAGES,
+    "blocked: team page": TEAM_PAGES,
     "blocked: robots.txt": ROBOTS,
     "blocked: page cap": PAGE_CAP,
 }
@@ -63,7 +65,9 @@ def _plural(count: int, singular: str, plural: str | None = None) -> str:
 def describe_refusals(counts: dict[str, int]) -> str:
     """One sentence about requests the safeguards refused, or "" if there were none.
 
-    Hitting the page cap is normal, so it is left out. Asking for another website, a
+    Hitting the page cap is normal, so it is left out. So is a team page: they are
+    blocked by design, and an agent following links will often try one. Asking for
+    another website, a
     staff profile page, or a page robots.txt forbids is worth a person's attention.
     """
     parts = []

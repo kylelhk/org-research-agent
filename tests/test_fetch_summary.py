@@ -41,6 +41,7 @@ def test_outcomes_are_grouped():
             entry("blocked: off-site"),
             entry("blocked: off-site redirect"),
             entry("blocked: staff profile page"),
+            entry("blocked: team page"),
             entry("blocked: robots.txt"),
             entry("blocked: page cap"),
             entry("error: unreachable"),
@@ -51,6 +52,7 @@ def test_outcomes_are_grouped():
         "pages_read": 2,
         "other_websites": 2,
         "profile_pages": 1,
+        "team_pages": 1,
         "robots": 1,
         "page_cap": 1,
         "errors": 2,
@@ -59,6 +61,13 @@ def test_outcomes_are_grouped():
 
 def test_nothing_refused_gives_no_sentence():
     assert describe_refusals(summarise([entry("fetched"), entry("blocked: page cap")])) == ""
+
+
+def test_team_pages_are_counted_but_not_called_a_refusal():
+    # Team pages are blocked by design, so they are not flagged for a person's attention.
+    counts = summarise([entry("fetched"), entry("blocked: team page")])
+    assert counts["team_pages"] == 1
+    assert describe_refusals(counts) == ""
 
 
 def test_sentence_names_each_kind_and_leaves_out_the_page_cap():

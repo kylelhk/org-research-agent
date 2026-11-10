@@ -287,6 +287,19 @@ def check_source_url(url: str) -> NameCheckResult:
     return _result(reasons)
 
 
+def looks_like_team_page(url: str) -> bool:
+    """True if the URL's path looks like a team or staff page, such as /our-team/.
+
+    Team pages list staff by name, so they are not read at all. This catches the page
+    from its address alone, before anything is downloaded.
+    """
+    segments = [segment for segment in unquote(urlsplit(url).path).lower().split("/") if segment]
+    if segments and segments[-1].rsplit(".", 1)[0] in URL_FILE_WORDS:
+        segments = segments[:-1]
+    names = [segment.rsplit(".", 1)[0] for segment in segments]
+    return any(name in TEAM_SEGMENTS for name in names)
+
+
 def ensure_no_names(
     fields: Mapping[str, str],
     allowed_terms: Iterable[str] = (),

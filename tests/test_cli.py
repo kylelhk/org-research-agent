@@ -38,7 +38,7 @@ FACTS = {
     "suburb": "Testville",
     "general_contact": "info@clinic.test",
     "staff_count": 4,
-    "staff_count_basis": "counted on team page",
+    "staff_count_basis": "stated on site",
     "evidence_quote": "",
     "no_marketing_notice": False,
     "no_marketing_quote": "",
@@ -100,7 +100,7 @@ def test_full_run_writes_spreadsheet(tmp_path, capsys):
         sheet.cell(row=1, column=c).value: sheet.cell(row=2, column=c).value for c in range(1, 15)
     }
     assert row["Fit"] == "fit"
-    assert row["Evidence quote"] == "Team page lists 4 staff."
+    assert not row["Evidence quote"]
     assert row["Status"] == "to review"
     output = capsys.readouterr().out
     assert "Results: 3 fit" in output

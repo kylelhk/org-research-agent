@@ -208,6 +208,106 @@ def test_staff_profile_page_is_not_opened(tmp_path):
     assert "sarah" not in json.dumps(entry).lower()
 
 
+# Team pages: never passed to the agent, because they list staff by name.
+
+TEAM_PAGE = f"""
+<html><head><title>Our team | Clinic</title></head>
+<body><h1>Meet our team</h1><p>Dr Sarah Whitfield, dentist. Dr Rohan Okonkwo, dentist.</p>
+<p>{FILLER}</p></body></html>
+"""
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://clinic.test/our-team",
+        "https://clinic.test/our-team/",
+        "https://clinic.test/about-us/our-team/index.html",
+        "https://clinic.test/team.html",
+        "https://clinic.test/staff",
+        "https://clinic.test/our-dentists/",
+    ],
+)
+def test_team_page_address_is_not_opened(tmp_path, url):
+    fetcher, web = make({url: TEAM_PAGE}, tmp_path=tmp_path)
+    result = fetcher.fetch(url)
+    assert result.startswith("BLOCKED: team and staff pages are not read")
+    assert url not in web.requested
+    assert fetcher.pages_fetched == 0  # Not counted against the page cap.
+    assert read_log(tmp_path)[-1]["outcome"] == "blocked: team page"
+
+
+@pytest.mark.parametrize(
+    "title, heading",
+    [
+        ("Our team | Clinic", "Welcome"),
+        ("Clinic", "Meet our friendly team"),
+        ("Our dentists - Clinic", "Clinic"),
+        ("Clinic", "Staff"),
+    ],
+)
+def test_team_page_at_an_ordinary_address_is_dropped(tmp_path, title, heading):
+    url = "https://clinic.test/about"
+    page = (
+        f"<html><head><title>{title}</title></head><body><h1>{heading}</h1>"
+        f"<p>Dr Sarah Whitfield, dentist.</p><p>{FILLER}</p></body></html>"
+    )
+    evidence = tmp_path / "evidence.jsonl"
+    fetcher = PageFetcher(
+        HOST, 5, tmp_path / "fetch-log.jsonl", get=FakeWeb({url: page}), evidence_path=evidence
+    )
+    result = fetcher.fetch(url)
+    assert result.startswith("BLOCKED: team and staff pages are not read")
+    assert "Whitfield" not in result
+    assert not evidence.exists()
+    assert read_log(tmp_path)[-1]["outcome"] == "blocked: team page"
+
+
+@pytest.mark.parametrize(
+    "title, heading",
+    [
+        ("About our practice | Clinic", "About our practice"),
+        ("Dentists in Testville | Clinic", "Dentists in Testville"),
+        ("Clinic", "Our team of eight is here to help"),
+        ("Teamwork in dental care", "Our approach"),
+    ],
+)
+def test_ordinary_page_mentioning_the_team_is_read(title, heading):
+    url = "https://clinic.test/about"
+    page = (
+        f"<html><head><title>{title}</title></head><body><h1>{heading}</h1>"
+        f"<p>Our team of eight includes four dentists.</p><p>{FILLER}</p></body></html>"
+    )
+    fetcher, _ = make({url: page})
+    result = fetcher.fetch(url)
+    assert "BEGIN UNTRUSTED PAGE CONTENT" in result
+    assert "Our team of eight" in result
+
+
+def test_hidden_heading_does_not_count(tmp_path):
+    url = "https://clinic.test/about"
+    page = (
+        "<html><head><title>About</title></head><body>"
+        '<h1 style="display:none">Our team</h1><h1>About us</h1>'
+        f"<p>{FILLER}</p></body></html>"
+    )
+    fetcher, _ = make({url: page})
+    assert "BEGIN UNTRUSTED PAGE CONTENT" in fetcher.fetch(url)
+
+
+def test_redirect_to_a_team_page_is_dropped(tmp_path):
+    url = "https://clinic.test/people-page"
+    landed = Response(200, "text/html", HOME, "https://clinic.test/our-team/")
+    fetcher, _ = make({url: landed}, tmp_path=tmp_path)
+    assert fetcher.fetch(url).startswith("BLOCKED: team and staff pages are not read")
+
+
+def test_profile_page_message_no_longer_points_to_the_team_page():
+    fetcher, _ = make({})
+    result = fetcher.fetch("https://clinic.test/our-team/sarah-whitfield")
+    assert "staff member" in result and "team page" not in result
+
+
 # Unreadable sites.
 
 

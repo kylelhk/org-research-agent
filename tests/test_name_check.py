@@ -8,6 +8,7 @@ from org_research_agent.name_check import (
     check_for_names,
     check_source_url,
     ensure_no_names,
+    looks_like_team_page,
 )
 
 # What the program would pass in: the org's own name, suburbs, and local places.
@@ -227,3 +228,22 @@ def test_ordinary_urls_pass(url):
 )
 def test_profile_urls_are_flagged(url):
     assert check_source_url(url).found
+
+
+@pytest.mark.parametrize(
+    "url, team",
+    [
+        ("https://example.test/our-team", True),
+        ("https://example.test/about-us/meet-the-team/", True),
+        ("https://example.test/team/index.html", True),
+        ("https://example.test/practitioners.html", True),
+        ("https://example.test/people", True),
+        ("https://example.test/", False),
+        ("https://example.test/about", False),
+        ("https://example.test/services/team-building.html", False),
+        ("https://example.test/news/our-staff-party-2026", False),
+        ("https://example.test/contact.html", False),
+    ],
+)
+def test_team_page_urls(url, team):
+    assert looks_like_team_page(url) is team

@@ -137,13 +137,28 @@ def test_fit_rule_is_applied_by_code(tmp_path, changes, fit, reason):
     assert reason in result.fit_reason
 
 
-def test_team_page_evidence_is_written_by_code(tmp_path):
-    # The agent's quote is ignored for team pages, even if it contains a name.
-    facts = answer(staff_count_basis="counted on team page", evidence_quote="Meet Dr Patel.")
-    result = run(FakeAgent(facts), tmp_path=tmp_path)
-    assert result.evidence == "Team page lists 7 staff."
+def test_counting_a_team_page_is_rejected(tmp_path):
+    # Team pages are not read, so a count "from the team page" is not a valid answer.
+    bad = answer(staff_count_basis="counted on team page", evidence_quote="Meet Dr Patel.")
+    agent = FakeAgent(bad, GOOD)
+    result = run(agent, tmp_path=tmp_path)
+    assert "invalid staff_count_basis" in agent.prompts[1]
+    assert result.staff_size == "7 (stated on site)"
     assert result.status == STATUS_REVIEW
     assert "Patel" not in json.dumps(asdict(result))
+
+
+def test_prompt_says_team_pages_are_blocked_and_not_to_count_names():
+    prompt = build_prompt(ORG, SETTINGS, 6)
+    assert "Team and staff pages are blocked" in prompt
+    assert "Never count people from names or photos" in prompt
+    assert "counted on team page" not in prompt
+    assert "such as the team" not in prompt
+
+
+def test_schema_offers_no_team_page_basis():
+    schema = build_schema(SETTINGS.fit.types, 6)
+    assert schema["properties"]["staff_count_basis"]["enum"] == ["stated on site", "unknown"]
 
 
 # Couldn't read.

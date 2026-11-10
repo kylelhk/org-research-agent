@@ -6,7 +6,10 @@ this class. Each request is checked against these rules:
 - Only the organisation's own website (redirects included).
 - robots.txt is respected. If it cannot be read, the site is treated as off limits.
 - A fixed page cap per organisation.
-- Pages about one staff member are not opened.
+- Team and staff pages are not passed to the agent, because they list staff by name.
+  Most are caught from the address and never opened. A page whose title or main
+  heading says it is a team page is caught after download, on this computer, and
+  its text is thrown away without reaching the agent.
 
 The agent gets back only visible text. Scripts, styles, hidden elements, and
 off-site links are removed, which shrinks the room for hidden instructions.
@@ -28,7 +31,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-from org_research_agent.name_check import check_for_names, check_source_url
+from org_research_agent.name_check import check_for_names, check_source_url, looks_like_team_page
 
 USER_AGENT = "OrgResearchAgent/0.1"
 TIMEOUT_S = 15
@@ -37,6 +40,20 @@ MAX_TEXT_CHARS = 20_000
 MIN_READABLE_CHARS = 80
 READABLE_TYPES = {"text/html", "text/plain", "application/xhtml+xml"}
 SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+# A title or main heading that is only a team label, for example "Our team",
+# "Meet our friendly team", "Our dentists | Clinic", or "Staff". The label must end
+# the heading or come before a separator, so "Dentists in Testville" (a service page)
+# and "Our team of eight" (a sentence) are not caught.
+TEAM_HEADING = re.compile(
+    r"^\s*(?:meet\s+)?(?:(?:our|the)\s+)?(?:[a-z-]+\s+)?"
+    r"(?:team|people|staff|doctors|dentists|practitioners|clinicians|physiotherapists"
+    r"|pharmacists|gps)\s*(?:$|[|:–—-])",
+    re.IGNORECASE,
+)
+TEAM_BLOCKED = (
+    "BLOCKED: team and staff pages are not read. Use a staff number only if another page states it."
+)
 
 
 class FetchFailed(Exception):
@@ -143,6 +160,9 @@ class _PageText(HTMLParser):
         self.parts: list[str] = []
         self.title_parts: list[str] = []
         self.in_title = False
+        self.heading_parts: list[str] = []
+        self.in_heading = False
+        self.heading_done = False
         self.links: list[str] = []
         self.off_site_links = 0
         self.hidden_removed = False
@@ -163,6 +183,8 @@ class _PageText(HTMLParser):
         hidden = self._hidden_now() or tag in self.SKIP or _is_hidden(attrs)
         if _is_hidden(attrs) and not self._hidden_now():
             self.hidden_removed = True
+        if tag == "h1" and not hidden and not self.heading_done:
+            self.in_heading = True
         if tag == "a" and not hidden and attrs.get("href"):
             link = _without_fragment(urljoin(self.base_url, attrs["href"]))
             if is_same_site(link, self.allowed_host):
@@ -178,6 +200,9 @@ class _PageText(HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self.in_title = False
+        if tag == "h1" and self.in_heading:
+            self.in_heading = False
+            self.heading_done = True
         # Pop back to the matching tag, which also copes with sloppy HTML.
         for index in range(len(self.stack) - 1, -1, -1):
             if self.stack[index][0] == tag:
@@ -191,9 +216,15 @@ class _PageText(HTMLParser):
             self.title_parts.append(data)
         elif not self._hidden_now():
             self.parts.append(data)
+            if self.in_heading:
+                self.heading_parts.append(data)
 
     def title(self) -> str:
         return " ".join("".join(self.title_parts).split())
+
+    def heading(self) -> str:
+        """The text of the first visible main heading (h1), or ""."""
+        return " ".join("".join(self.heading_parts).split())
 
     def text(self) -> str:
         lines = (" ".join(line.split()) for line in "".join(self.parts).splitlines())
@@ -281,7 +312,10 @@ class PageFetcher:
             return self.cache[url]
         if check_source_url(url).found:
             self._log(url, "blocked: staff profile page")
-            return "BLOCKED: pages about one staff member are not read. Use the team page."
+            return "BLOCKED: pages about one staff member are not read."
+        if looks_like_team_page(url):
+            self._log(url, "blocked: team page")
+            return TEAM_BLOCKED
         if self.pages_fetched >= self.max_pages:
             self._log(url, "blocked: page cap")
             return f"BLOCKED: the limit of {self.max_pages} pages is reached. Finish now."
@@ -335,12 +369,24 @@ class PageFetcher:
     def _to_agent_text(self, response: Response) -> str:
         if response.content_type == "text/plain":
             title, text, links, off_site, hidden = "", response.text, [], 0, False
+            heading = ""
         else:
             parser = _PageText(response.final_url, self.allowed_host)
             parser.feed(response.text)
             parser.close()
             title, text, links = parser.title(), parser.text(), parser.links
             off_site, hidden = parser.off_site_links, parser.hidden_removed
+            heading = parser.heading()
+
+        # A team page at an ordinary address: drop its text here, so no name leaves
+        # this computer. The redirect target is checked by address for the same reason.
+        if (
+            TEAM_HEADING.match(title)
+            or TEAM_HEADING.match(heading)
+            or looks_like_team_page(response.final_url)
+        ):
+            self._log(response.final_url, "blocked: team page", response.status)
+            return TEAM_BLOCKED
 
         if len(text) < MIN_READABLE_CHARS:
             self._log(response.final_url, "error: no readable text", response.status)

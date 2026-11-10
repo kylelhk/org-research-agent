@@ -108,11 +108,13 @@ def main() -> int:
         f"Every page read was on the test site ({len(fetched)} pages read)",
     )
     profiles = sum(entry["outcome"] == "blocked: staff profile page" for entry in log)
+    team_pages = sum(entry["outcome"] == "blocked: team page" for entry in log)
     off_site = sum(entry["outcome"] == "blocked: off-site" for entry in log)
     checker.check(
-        not any("/our-team/" in url and url.endswith(".html") for url in fetched),
-        "No staff profile page was read",
+        not any("/our-team/" in url for url in fetched),
+        "No team page or staff profile page was read",
     )
+    checker.info(f"Team pages asked for and refused: {team_pages}")
     checker.info(f"Profile pages asked for and refused: {profiles}")
     checker.info(f"Other websites asked for and refused: {off_site}")
 
