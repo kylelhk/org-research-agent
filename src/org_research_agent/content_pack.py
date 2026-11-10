@@ -1,12 +1,14 @@
 """Build a Word review pack from a folder of Markdown drafts.
 
-One pack per topic: each draft (guide, emails, invitation, slides) under its
-own Heading 1, then the source log and review notes if present, then a
-sign-off table. After the pack is built, it is the working copy: people edit
-it in Word with Track Changes, and content-check reads it directly.
+One pack per folder: each draft (guide, emails, invitation, slides) under its
+own Heading 1, grouped by topic when there is more than one, then the source log
+and review notes if present, then a sign-off table. After the pack is built, it
+is the working copy: people edit it in Word with Track Changes, and content-check
+reads it directly.
 
 Usage:
-    content-pack private/content/first-home --title "First home" --draft 1
+    content-pack private/content/pack --title "All content" --draft 1
+    content-pack private/content/pack --title "All content" --font Arial --logo logo.png
 """
 
 from __future__ import annotations
@@ -47,13 +49,64 @@ HOW_TO_REVIEW = [
 ]
 
 
-def _heading_title(path: Path) -> str:
+def _topic(path: Path) -> str:
+    """The topic in a guide or email's file name, such as "First home", or ""."""
+    stem = path.stem.lower()
+    match = re.search(r"-?(?:guide|email)", stem)
+    if not match or kind_of(path).kind not in {"guide", "email"}:
+        return ""
+    words = stem[: match.start()].replace("-", " ").strip()
+    return words[:1].upper() + words[1:]
+
+
+def _heading_title(path: Path, with_topic: bool = False) -> str:
     kind = kind_of(path)
     if kind.kind == "email":
-        return f"Email {kind.number}"
-    return {"guide": "Guide", "invitation": "Invitation", "slides": "Presentation"}.get(
-        kind.kind, path.stem
-    )
+        title = f"Email {kind.number}"
+    else:
+        title = {"guide": "Guide", "invitation": "Invitation", "slides": "Presentation"}.get(
+            kind.kind, path.stem
+        )
+    topic = _topic(path) if with_topic else ""
+    return f"{topic}: {title}" if topic else title
+
+
+def _brand(document: Document, font: str, table_fill: str | None) -> None:
+    """Restyle a finished pack in a business's own font, with black headings."""
+    styles = document.styles
+    for name in ("Normal", "List Bullet", "Title", "Heading 1", "Heading 2", "Heading 3"):
+        style = styles[name]
+        style.font.name = font
+        fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
+        for attribute in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+            fonts.set(qn(attribute), font)
+        if name != "Normal" and name != "List Bullet":
+            style.font.color.rgb = RGBColor(0, 0, 0)
+            style.font.bold = True
+    for name in ("Title", "Heading 1"):
+        styles[name].font.all_caps = True
+    # Most web fonts run wider and taller than Arial, so body text is set a little
+    # smaller to keep a one-page guide on one page.
+    styles["Normal"].font.size = Pt(10.5)
+    # The default title has a coloured rule under it, which clashes with a plain style.
+    title_format = styles["Title"].element.pPr
+    if title_format is not None:
+        for border in title_format.findall(qn("w:pBdr")):
+            title_format.remove(border)
+    if table_fill:
+        for shading in document.element.body.iter(qn("w:shd")):
+            shading.set(qn("w:fill"), table_fill)
+
+
+def _add_logo(document: Document, logo: Path) -> None:
+    """Put the business's logo at the top left of every page, inside the top margin."""
+    if not logo.is_file():
+        raise ValueError(f"Logo not found: {logo}")
+    section = document.sections[0]
+    section.header_distance = Cm(1)
+    paragraph = section.header.paragraphs[0]
+    paragraph.paragraph_format.space_after = Pt(0)
+    paragraph.add_run().add_picture(str(logo), height=Cm(0.6))
 
 
 def _add_hyperlink(paragraph, url: str, size: Pt | None = None) -> None:
@@ -278,17 +331,40 @@ def _style(document: Document, landscape: bool = False) -> None:
         setattr(section, side, Cm(2))
 
 
-def build_pack(folder: Path, title: str, draft: int, output: Path | None = None) -> Path:
-    """Build a review pack from the drafts, source log, and review notes in a folder."""
+def build_pack(
+    folder: Path,
+    title: str,
+    draft: int,
+    output: Path | None = None,
+    font: str | None = None,
+    table_fill: str | None = None,
+    logo: Path | None = None,
+) -> Path:
+    """Build a review pack from the drafts, source log, and review notes in a folder.
+
+    When the folder holds more than one topic, guides and emails are grouped by topic
+    and their headings name it, such as "Investing: Email 2". A font restyles the pack
+    to match a business's own style, and a logo goes at the top of every page.
+    """
+    candidates = [p for p in folder.glob("*.md") if kind_of(p).kind in KIND_ORDER]
+    topics = sorted({_topic(p) for p in candidates} - {""})
+    with_topic = len(topics) > 1
     drafts = sorted(
-        (p for p in folder.glob("*.md") if kind_of(p).kind in KIND_ORDER),
-        key=lambda p: (KIND_ORDER[kind_of(p).kind], kind_of(p).number or 0),
+        candidates,
+        key=lambda p: (
+            KIND_ORDER[kind_of(p).kind] if KIND_ORDER[kind_of(p).kind] > 1 else 0,
+            topics.index(_topic(p)) if with_topic and _topic(p) in topics else 0,
+            KIND_ORDER[kind_of(p).kind],
+            kind_of(p).number or 0,
+        ),
     )
     if not drafts:
         raise ValueError(f"No drafts found in {folder}.")
 
     document = Document()
     _style(document)
+    if logo:
+        _add_logo(document, logo)
     document.add_heading(f"{title}: review pack", level=0)
     today = date.today()
     document.add_paragraph(f"Draft {draft}, built {today.day} {today:%B %Y}. For review.")
@@ -300,7 +376,7 @@ def build_pack(folder: Path, title: str, draft: int, output: Path | None = None)
         document.add_heading(text, level=1).paragraph_format.page_break_before = True
 
     for path in drafts:
-        new_page_heading(_heading_title(path))
+        new_page_heading(_heading_title(path, with_topic))
         _write_markdown(document, path.read_text(), top_level=1)
 
     for name, heading in (("source-log.md", "Source log"), ("review-notes.md", "Review notes")):
@@ -312,10 +388,12 @@ def build_pack(folder: Path, title: str, draft: int, output: Path | None = None)
 
     new_page_heading("Sign-off")
     rows = ["| Item | Consultant checked (date) | Business owner approved (date) | Notes |"]
-    rows += [f"| {_heading_title(p)} | | | |" for p in drafts]
+    rows += [f"| {_heading_title(p, with_topic)} | | | |" for p in drafts]
     _table(document, rows)
 
     output = output or folder / f"{title} - review pack - draft {draft}.docx"
+    if font:
+        _brand(document, font, table_fill)
     document.save(output)
     return output
 
@@ -326,9 +404,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--title", required=True, help='Topic name, such as "First home".')
     parser.add_argument("--draft", type=int, default=1, help="Draft number.")
     parser.add_argument("--output", type=Path, help="Where to save the pack.")
+    parser.add_argument(
+        "--font", help='A font to match the business\'s style, such as "Open Sans".'
+    )
+    parser.add_argument(
+        "--table-fill", help="Table heading colour as six hex digits, such as D3D3D3."
+    )
+    parser.add_argument("--logo", type=Path, help="A logo image for the top of every page.")
     args = parser.parse_args(argv)
     try:
-        path = build_pack(args.folder, args.title, args.draft, args.output)
+        path = build_pack(
+            args.folder,
+            args.title,
+            args.draft,
+            args.output,
+            args.font,
+            args.table_fill,
+            args.logo,
+        )
     except ValueError as error:
         print(f"Error: {error}", file=sys.stderr)
         return 1

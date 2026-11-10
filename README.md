@@ -59,7 +59,7 @@ content-pack private/content/first-home --title "First home" --draft 1   # Build
 content-check private/content/first-home                                  # First automated pass, Word packs included
 ```
 
-A review pack holds the content from one folder, with its source log and a sign-off table. To keep the review short, all the content (guides, emails, invitation, and slides) goes into one pack, which the consultant and the business owner review together in one session, editing in Word with Track Changes. `content-check` reads the pack directly once changes are accepted. A clean result means ready for human review, not approved. The full review steps are in [`docs/content-review-checklist.docx`](docs/content-review-checklist.docx).
+A review pack holds the content from one folder, with its source log and a sign-off table. To keep the review short, all the content (guides, emails, invitation, and slides) goes into one pack, which the consultant and the business owner review together in one session, editing in Word with Track Changes. `content-pack` can match the business's own style with `--font`, `--table-fill`, and `--logo`. `content-check` reads the pack directly once changes are accepted. It fails any mobile number, except the business's own published number given with `--business-phone`. A clean result means ready for human review, not approved. The full review steps are in [`docs/content-review-checklist.docx`](docs/content-review-checklist.docx).
 
 ## Project layout
 

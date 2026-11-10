@@ -17,6 +17,9 @@ Drafts are recognised by file name:
 A name containing "complex" marks the complex structures topic.
 Emails start with a "Subject:" line.
 
+A business whose published number is a mobile can pass it with --business-phone,
+so that number is allowed and any other mobile number still fails.
+
 It also reads Word review packs built by content-pack: each Heading 1 is one
 draft ("Guide", "Email 1", "Invitation"), other sections are skipped, and the
 pack must have no tracked changes left in it.
@@ -50,6 +53,9 @@ class Rule:
     section: str
     message: str
     pattern: re.Pattern
+
+
+MOBILE_MESSAGE = "Mobile number. Use the business's published number only."
 
 
 def _rule(level: str, section: str, message: str, pattern: str) -> Rule:
@@ -151,7 +157,7 @@ RULES = [
     _rule(
         FAIL,
         "F",
-        "Mobile number. Use the business's published number only.",
+        MOBILE_MESSAGE,
         r"(?:\+?61[\s-]?|\b0)4(?:[\s-]?\d){8}\b",
     ),
     # H. Links shown in full, never shortened.
@@ -465,6 +471,24 @@ def read_pack(path: Path) -> tuple[list[tuple[str, str, list[int]]], bool]:
     return sections, tracked
 
 
+def _phone_digits(number: str) -> str:
+    """A phone number's digits in local form, so "+61 406..." and "0406..." match."""
+    digits = re.sub(r"\D", "", number)
+    return "0" + digits[2:] if digits.startswith("61") else digits
+
+
+def _allow_business_phone(findings: list[Finding], phone: str | None) -> list[Finding]:
+    """Drop mobile number findings for the business's own published number only."""
+    if not phone:
+        return findings
+    allowed = _phone_digits(phone)
+    return [
+        f
+        for f in findings
+        if not (f.message == MOBILE_MESSAGE and _phone_digits(f.excerpt) == allowed)
+    ]
+
+
 def _check_pack(path: Path, disclaimer: str | None) -> list[DraftResult]:
     sections, tracked = read_pack(path)
     if tracked:
@@ -487,7 +511,9 @@ def _check_pack(path: Path, disclaimer: str | None) -> list[DraftResult]:
     return results
 
 
-def check_paths(paths: list[Path], disclaimer: str | None = None) -> list[DraftResult]:
+def check_paths(
+    paths: list[Path], disclaimer: str | None = None, business_phone: str | None = None
+) -> list[DraftResult]:
     files = []
     for path in paths:
         if path.is_dir():
@@ -511,6 +537,8 @@ def check_paths(paths: list[Path], disclaimer: str | None = None) -> list[DraftR
         else:
             findings = check_draft(file.read_text(), file, disclaimer)
             results.append(DraftResult(file.name, kind_of(file), findings))
+    for result in results:
+        result.findings = _allow_business_phone(result.findings, business_phone)
     return results
 
 
@@ -529,10 +557,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--disclaimer-file", type=Path, help="File holding the exact disclaimer text."
     )
+    parser.add_argument(
+        "--business-phone",
+        help="The business's published number, allowed even if it is a mobile.",
+    )
     args = parser.parse_args(argv)
     disclaimer = args.disclaimer_file.read_text().strip() if args.disclaimer_file else None
 
-    results = check_paths(args.paths, disclaimer)
+    results = check_paths(args.paths, disclaimer, args.business_phone)
     if not results:
         print("No drafts found (.md, .txt, or a Word review pack).")
         return 1

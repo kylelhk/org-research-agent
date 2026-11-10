@@ -1,5 +1,8 @@
 """Tests for Word review packs: building them, and checking them. All text is made up."""
 
+import base64
+
+import pytest
 from docx import Document
 from docx.enum.text import WD_COLOR_INDEX
 from docx.oxml import OxmlElement
@@ -156,3 +159,56 @@ def test_content_pack_command(tmp_path, capsys):
     assert pack_main([str(folder), "--title", "First home", "--draft", "2"]) == 0
     assert (folder / "First home - review pack - draft 2.docx").is_file()
     assert pack_main([str(tmp_path), "--title", "Empty"]) == 1
+
+
+def test_two_topics_are_grouped_and_named(tmp_path):
+    folder = make_drafts(tmp_path / "drafts")
+    (folder / "investing-guide.md").write_text(GOOD_GUIDE)
+    (folder / "investing-email-1.md").write_text(GOOD_EMAIL_1)
+    pack = build_pack(folder, "All content", 1)
+    assert headings(pack) == [
+        "How to review this pack",
+        "First home: Guide",
+        "First home: Email 1",
+        "First home: Email 2",
+        "Investing: Guide",
+        "Investing: Email 1",
+        "Invitation",
+        "Source log",
+        "Sign-off",
+    ]
+    # The checker still recognises each draft from its heading.
+    labels = [result.label.split(" > ")[1] for result in check_paths([pack], DISCLAIMER)]
+    assert labels == headings(pack)[1:7]
+
+
+def test_pack_can_use_the_business_font(tmp_path):
+    folder = make_drafts(tmp_path / "drafts")
+    pack = build_pack(folder, "First home", 1, font="Open Sans", table_fill="D3D3D3")
+    document = Document(str(pack))
+    for name in ("Normal", "Heading 1", "Title"):
+        assert document.styles[name].font.name == "Open Sans"
+    assert document.styles["Heading 1"].font.all_caps
+    assert str(document.styles["Heading 1"].font.color.rgb) == "000000"
+    fills = {s.get(qn("w:fill")) for s in document.element.body.iter(qn("w:shd"))}
+    assert fills == {"D3D3D3"}
+
+
+# A 1 x 1 pixel PNG, enough for Word to place an image.
+TINY_PNG = base64.b64decode(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+)
+
+
+def test_pack_puts_the_logo_at_the_top_of_every_page(tmp_path):
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(TINY_PNG)
+    pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1, logo=logo)
+    header = Document(str(pack)).sections[0].header
+    assert not header.is_linked_to_previous
+    assert header.part.element.findall(".//" + qn("w:drawing"))
+
+
+def test_a_missing_logo_is_reported(tmp_path):
+    with pytest.raises(ValueError, match="Logo not found"):
+        build_pack(make_drafts(tmp_path / "drafts"), "First home", 1, logo=tmp_path / "no.png")

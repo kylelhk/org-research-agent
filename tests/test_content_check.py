@@ -8,6 +8,7 @@ from org_research_agent.content_check import (
     CHECK,
     FAIL,
     check_draft,
+    check_paths,
     kind_of,
     main,
     reading_grade,
@@ -318,3 +319,19 @@ def test_command_exit_codes(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "2 drafts: 1 clean, 0 with checks only, 1 with failures" in output
     assert "ready for human review, not approved" in output
+
+
+def test_the_business_phone_is_allowed_but_other_mobiles_still_fail(tmp_path):
+    draft = tmp_path / "first-home-email-1.md"
+    draft.write_text(GOOD_EMAIL_1 + "\nCall 0400 111 222 or 0499 888 777.\n")
+    for phone in ("0400 111 222", "+61 400 111 222"):
+        findings = check_paths([draft], business_phone=phone)[0].findings
+        mobiles = [f.excerpt for f in findings if f.section == "F"]
+        assert mobiles == ["0499 888 777"]
+
+
+def test_mobiles_fail_when_no_business_phone_is_given(tmp_path):
+    draft = tmp_path / "first-home-email-1.md"
+    draft.write_text(GOOD_EMAIL_1 + "\nCall 0400 111 222.\n")
+    findings = check_paths([draft])[0].findings
+    assert [f.level for f in findings if f.section == "F"] == [FAIL]
