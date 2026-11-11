@@ -208,6 +208,14 @@ def test_name_twice_blanks_quotes_and_never_stores_the_name(tmp_path):
     assert any("failed checks twice" in note for note in result.notes)
 
 
+def test_note_says_why_a_quote_was_removed_without_the_word(tmp_path):
+    bad = answer(evidence_quote="Sarah Whitfield leads our team.")
+    result = run(FakeAgent(bad, bad), tmp_path=tmp_path)
+    note = next(note for note in result.notes if "failed checks twice" in note)
+    assert "possible name in evidence_quote (given name" in note
+    assert "Sarah" not in note and "Whitfield" not in note
+
+
 def test_retry_prompt_never_repeats_the_name(tmp_path):
     bad = answer(evidence_quote="Sarah Whitfield leads our team.")
     agent = FakeAgent(bad, GOOD)

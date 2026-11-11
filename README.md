@@ -38,11 +38,16 @@ Edit the private copy. It is listed in `.gitignore` and must never be committed.
 org-research --dry-run      # List the organisations without researching them
 org-research --limit 3      # Research the first 3 only
 org-research                # Research the full list
+org-research --find-websites  # First find missing or broken websites by search
 ```
+
+The map search often fails once and then works, so it is tried up to three times.
+
+`--find-websites` fills the biggest gap in the map data: many practices have no website listed, or a mistyped one. Before the agent runs, it searches each such practice's name with the [Brave Search API](https://brave.com/search/api/), keeps only the result addresses (titles and snippets are dropped unread), skips directories and social media, and opens each home page under the fetch tool's rules. A site is accepted only if it names the practice and the local area, and the name is in its title or web address. The agent and its instructions are unchanged, and no page text from this step goes to the AI. It needs an API key in the `BRAVE_API_KEY` environment variable; the Search plan needs a card and includes $5 of free credit a month, about 1,000 searches. Search results vary from run to run, so each confirmed website is saved to `config/found_websites.private.json` (git-ignored) and reused in later runs once its home page still checks out; only the practices still missing a website are searched again. The version without this step is tagged `v1-map-only`.
 
 Results are saved to `output/research-<date>.xlsx`, with a status column for the reviewer. Each request the agent makes is logged to `runs/<date>/fetch-log.jsonl`, without page content. Both folders are git-ignored. Press Ctrl+C to stop; finished organisations are still saved.
 
-After each organisation, the run reads the new lines of the fetch log. If the agent asked for another website, a staff profile page, or a page robots.txt forbids, the request was refused and the organisation's row says so in the Notes column. The run summary shows the totals.
+After each organisation, the run reads the new lines of the fetch log. If the agent asked for another website, a staff profile page, or a page robots.txt forbids, the request was refused and the organisation's row says so in the Notes column. If a quote may contain a person's name and the agent cannot fix it on a retry, the quote is removed and the note says why (for example "given name"), without repeating the word. The run summary shows the totals.
 
 Each Excel file also has a **Run info** sheet with the agent's time per organisation, and columns for the reviewer's checking and rework time. Once those are filled in, compare with a baseline:
 

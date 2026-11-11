@@ -4,12 +4,14 @@ Examples:
     org-research --dry-run           List the organisations without researching them.
     org-research --limit 3           Research the first 3 organisations only.
     org-research --no-map            Use only the hand-added list.
+    org-research --find-websites     Find missing or broken websites first (needs BRAVE_API_KEY).
 """
 
 from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections import Counter
 from collections.abc import Callable
 from datetime import datetime
@@ -38,6 +40,15 @@ from org_research_agent.organisation import Organisation
 from org_research_agent.osm import find_organisations
 from org_research_agent.research import DEFAULT_MAX_PAGES, STATUS_CHECK, research_organisation
 from org_research_agent.settings import DEFAULT_SETTINGS_PATH, SettingsError, load_settings
+from org_research_agent.website_lookup import (
+    FOUND,
+    NOT_FOUND,
+    SAVED,
+    WebsiteLookupError,
+    find_websites,
+)
+
+MAP_ATTEMPTS = 3
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -54,6 +65,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--allow-fewer", action="store_true", help="Run even below the minimum count."
     )
+    parser.add_argument(
+        "--find-websites",
+        action="store_true",
+        help="Search for missing or broken websites first. Needs BRAVE_API_KEY.",
+    )
     parser.add_argument("--output-dir", default="output")
     parser.add_argument("--runs-dir", default="runs")
     return parser.parse_args(argv)
@@ -64,6 +80,8 @@ def main(
     runner: Callable = run_claude,
     find: Callable[..., list[Organisation]] = find_organisations,
     stamp: str | None = None,
+    lookup: Callable[..., list] = find_websites,
+    pause: Callable[[float], None] = time.sleep,
 ) -> int:
     args = _parse_args(argv)
 
@@ -81,11 +99,20 @@ def main(
     elif area.centre_lat is None or area.centre_lon is None:
         print("No centre point in the settings, so the map search is skipped.")
     else:
-        try:
-            map_orgs = find(area.centre_lat, area.centre_lon, int(area.radius_km * 1000))
-        except (OSError, ValueError) as error:
-            print(f"Error: the map search failed ({type(error).__name__}).", file=sys.stderr)
-            return 1
+        # The public map service often fails once and then works, so try a few times.
+        for attempt in range(1, MAP_ATTEMPTS + 1):
+            try:
+                map_orgs = find(area.centre_lat, area.centre_lon, int(area.radius_km * 1000))
+                break
+            except (OSError, ValueError) as error:
+                if attempt == MAP_ATTEMPTS:
+                    print(
+                        f"Error: the map search failed {MAP_ATTEMPTS} times "
+                        f"({type(error).__name__}). Wait a few minutes and try again.",
+                        file=sys.stderr,
+                    )
+                    return 1
+                pause(10 * attempt)
 
     organisations = combine(map_orgs, manual)
     if not args.allow_fewer:
@@ -101,9 +128,28 @@ def main(
         f"{len(organisations)} organisations to research "
         f"({len(map_orgs)} from the map, {len(manual)} added by hand)."
     )
+    found_by_search: set[str] = set()
+    if args.find_websites:
+        places = (*area.suburbs, *area.nearby_suburbs, *area.allowed_terms, "Perth")
+        try:
+            lookups = lookup(organisations, places)
+        except WebsiteLookupError as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 2
+        organisations = [result.organisation for result in lookups]
+        found_by_search = {r.organisation.name for r in lookups if r.outcome in {FOUND, SAVED}}
+        outcomes = Counter(result.outcome for result in lookups)
+        print(
+            f"Website lookup: {outcomes[FOUND]} found by search, "
+            f"{outcomes[SAVED]} saved from earlier searches, "
+            f"{len(lookups) - outcomes[FOUND] - outcomes[SAVED] - outcomes[NOT_FOUND]} "
+            f"listed websites confirmed, {outcomes[NOT_FOUND]} not found "
+            f"({sum(r.searches for r in lookups)} searches)."
+        )
     if args.dry_run:
         for org in organisations:
-            print(f"- {org.name} ({org.type}, {org.website or 'no website'})")
+            note = ", found by search" if org.name in found_by_search else ""
+            print(f"- {org.name} ({org.type}, {org.website or 'no website'}{note})")
         return 0
 
     stamp = stamp or datetime.now().strftime("%Y-%m-%d-%H%M")

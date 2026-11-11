@@ -165,3 +165,57 @@ def test_spreadsheet_holds_no_page_text_or_logs(tmp_path):
     sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
     text = json.dumps([[cell.value for cell in row] for row in sheet.iter_rows()])
     assert "UNTRUSTED PAGE CONTENT" not in text
+
+
+def test_map_search_is_retried_before_giving_up(tmp_path, capsys):
+    calls = []
+
+    def flaky_find(lat, lon, radius_m):
+        calls.append(1)
+        if len(calls) < 3:
+            raise OSError("busy")
+        return fake_find(lat, lon, radius_m)
+
+    args = setup(tmp_path) + ["--dry-run"]
+    assert main(args, find=flaky_find, pause=lambda s: None) == 0
+    assert len(calls) == 3
+
+
+def test_map_search_stops_after_three_failures(tmp_path, capsys):
+    def broken_find(lat, lon, radius_m):
+        raise OSError("down")
+
+    args = setup(tmp_path) + ["--dry-run"]
+    assert main(args, find=broken_find, pause=lambda s: None) == 1
+    assert "failed 3 times" in capsys.readouterr().err
+
+
+def test_find_websites_fills_in_a_website_before_the_run(tmp_path, capsys):
+    from org_research_agent.website_lookup import CHECKED, FOUND, LookupResult
+
+    def fake_lookup(organisations, places):
+        assert "Testville" in places
+        return [
+            LookupResult(
+                Organisation(o.name, o.type, o.suburb, "https://found.test/", o.source), FOUND, 1
+            )
+            if o.name == "Beta Clinic"
+            else LookupResult(o, CHECKED)
+            for o in organisations
+        ]
+
+    args = setup(tmp_path) + ["--find-websites", "--dry-run"]
+    assert main(args, find=fake_find, lookup=fake_lookup) == 0
+    output = capsys.readouterr().out
+    assert (
+        "Website lookup: 1 found by search, 0 saved from earlier searches, "
+        "2 listed websites confirmed, 0 not found" in output
+    )
+    assert "- Beta Clinic (clinic, https://found.test/, found by search)" in output
+
+
+def test_find_websites_stops_without_a_key(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("BRAVE_API_KEY", raising=False)
+    args = setup(tmp_path) + ["--find-websites", "--dry-run"]
+    assert main(args, find=fake_find) == 2
+    assert "No search API key" in capsys.readouterr().err

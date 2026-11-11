@@ -268,8 +268,10 @@ def _content_problems(
     for name, quote in quotes.items():
         if not quote:
             continue
-        if check_for_names(quote, allowed_terms).found:
-            problems.append(f"possible name in {name}")
+        check = check_for_names(quote, allowed_terms)
+        if check.found:
+            # The reasons say why, such as "given name", without repeating the word.
+            problems.append(f"possible name in {name} ({', '.join(check.reasons)})")
         elif not quote_is_verified(quote, sentences):
             problems.append(f"{name} not found on the pages read")
     if facts["no_marketing_notice"] and not facts["no_marketing_quote"]:
