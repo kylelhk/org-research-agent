@@ -207,10 +207,7 @@ def test_find_websites_fills_in_a_website_before_the_run(tmp_path, capsys):
     args = setup(tmp_path) + ["--find-websites", "--dry-run"]
     assert main(args, find=fake_find, lookup=fake_lookup) == 0
     output = capsys.readouterr().out
-    assert (
-        "Website lookup: 1 found by search, 0 saved from earlier searches, "
-        "2 listed websites confirmed, 0 not found" in output
-    )
+    assert "Website lookup: 1 found by search, 2 listed websites confirmed, 0 not found" in output
     assert "- Beta Clinic (clinic, https://found.test/, found by search)" in output
 
 

@@ -16,10 +16,10 @@ agent researches a website. For each organisation it:
 The page text is checked here and then discarded: it never goes to the AI.
 An API key is needed in the BRAVE_API_KEY environment variable.
 
-Search results vary from one run to the next, so each confirmed website is saved
-(config/found_websites.private.json, git-ignored). Later runs check the saved site
-still works and reuse it without searching. Only practice names and their public
-website addresses are saved.
+Brave's terms do not allow storing or caching search results, so nothing from a
+search is kept between runs: each run searches again, and results may vary a little.
+The only thing that leaves this step is the confirmed website address, which goes
+into the results spreadsheet for review.
 """
 
 from __future__ import annotations
@@ -33,8 +33,6 @@ import urllib.parse
 import urllib.request
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, replace
-from datetime import date
-from pathlib import Path
 from urllib.parse import urlsplit
 
 from org_research_agent.fetcher import PageFetcher, normalise_host
@@ -46,8 +44,6 @@ RESULTS_PER_SEARCH = 10
 CANDIDATES_TO_OPEN = 4
 SEARCH_GAP_S = 1.1  # Stay well under the API's rate limit.
 FOUND, CHECKED, NOT_FOUND = "found", "listed site works", "not found"
-SAVED = "saved from an earlier search"
-DEFAULT_SAVED_PATH = Path("config/found_websites.private.json")
 
 # Sites that list many businesses. A practice's page there is not its own website.
 DIRECTORY_HOSTS = (
@@ -174,33 +170,17 @@ def _confirms(url: str, org: Organisation, places: tuple[str, ...], read: Callab
     )
 
 
-def _key(org: Organisation) -> str:
-    return " ".join(_words(org.name))
-
-
-def load_saved(path: Path) -> dict[str, dict]:
-    """Websites confirmed in earlier runs, by organisation name. Empty if none yet."""
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
 def find_website(
     org: Organisation,
     places: tuple[str, ...],
     api_key: str,
     search: Callable[[str, str], list[str]] = brave_search,
     read: Callable[[str], str] | None = None,
-    saved_url: str | None = None,
 ) -> LookupResult:
-    """Keep a listed or saved website that works, or search for one the page confirms."""
+    """Keep a listed website that works, or search for one the page confirms."""
     read = read or (lambda url: _page_text(url, (org.name, *places)))
     if org.website and _confirms(home_page(org.website), org, places, read):
         return LookupResult(org, CHECKED)
-    if saved_url and _confirms(saved_url, org, places, read):
-        return LookupResult(replace(org, website=saved_url), SAVED)
     where = org.suburb if org.suburb != UNKNOWN else "Perth"
     urls = search(f'"{org.name}" {where} WA', api_key)
     seen: set[str] = set()
@@ -250,31 +230,19 @@ def find_websites(
     search: Callable[[str, str], list[str]] = brave_search,
     read: Callable[[str], str] | None = None,
     pause: Callable[[float], None] = time.sleep,
-    saved_path: Path | None = DEFAULT_SAVED_PATH,
 ) -> list[LookupResult]:
-    """Run find_website for each organisation, one search at a time, and save new finds."""
+    """Run find_website for each organisation, one search at a time. Nothing is saved."""
     api_key = api_key or os.environ.get(API_KEY_VARIABLE, "")
     if not api_key:
         raise WebsiteLookupError(f"No search API key. Set {API_KEY_VARIABLE} first.")
     search = _search_with_retry(search, pause)
-    saved = load_saved(saved_path) if saved_path else {}
     results = []
     for org in organisations:
-        entry = saved.get(_key(org))
-        saved_url = entry.get("website") if isinstance(entry, dict) else None
         try:
-            result = find_website(org, places, api_key, search, read, saved_url)
+            result = find_website(org, places, api_key, search, read)
         except (urllib.error.URLError, OSError, ValueError, KeyError):
             result = LookupResult(org, NOT_FOUND, 1)
-        if result.outcome == FOUND:
-            saved[_key(org)] = {
-                "website": result.organisation.website,
-                "confirmed_on": date.today().isoformat(),
-            }
         results.append(result)
         if result.searches:
             pause(SEARCH_GAP_S)
-    if saved_path and saved:
-        saved_path.parent.mkdir(parents=True, exist_ok=True)
-        saved_path.write_text(json.dumps(saved, indent=2, sort_keys=True) + "\n")
     return results

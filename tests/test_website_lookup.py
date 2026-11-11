@@ -9,7 +9,6 @@ from org_research_agent.website_lookup import (
     CHECKED,
     FOUND,
     NOT_FOUND,
-    SAVED,
     WebsiteLookupError,
     brave_search,
     distinctive_words,
@@ -32,7 +31,7 @@ PAGES = {
 
 @pytest.fixture(autouse=True)
 def in_temp_folder(tmp_path, monkeypatch):
-    # The default saved-websites file is relative, so keep it out of the real config folder.
+    # Run in an empty folder, so a test would show up any file the lookup wrote.
     monkeypatch.chdir(tmp_path)
 
 
@@ -198,43 +197,16 @@ def test_a_name_of_place_words_must_be_in_the_address():
     assert not is_own_site("Dentist Testvale", "https://smiles.test/", name, PLACES)
 
 
-def test_a_found_website_is_saved_and_reused_without_searching(tmp_path):
-    saved = tmp_path / "found.json"
+def test_nothing_from_a_search_is_saved_and_each_run_searches_again(tmp_path):
     org = Organisation("Alpha Dental", suburb="Testvale")
-    first = find_websites([org], PLACES, "key", search=lambda q, k: ["https://alphadental.test/x"],
-                          read=read, pause=no_pause, saved_path=saved)  # fmt: skip
-    assert first[0].outcome == FOUND
-    assert "https://alphadental.test/" in saved.read_text()
-
-    def no_search(query, key):
-        raise AssertionError("The saved website should be reused.")
-
-    second = find_websites([org], PLACES, "key", search=no_search, read=read, pause=no_pause,
-                           saved_path=saved)  # fmt: skip
-    assert second[0].outcome == SAVED
-    assert second[0].organisation.website == "https://alphadental.test/"
-    assert second[0].searches == 0
-
-
-def test_a_saved_website_that_stopped_working_is_searched_again(tmp_path):
-    saved = tmp_path / "found.json"
-    saved.write_text('{"alpha dental": {"website": "https://gone.test/"}}')
     searched = []
 
     def search(query, key):
         searched.append(query)
-        return ["https://alphadental.test/"]
+        return ["https://alphadental.test/x"]
 
-    results = find_websites([Organisation("Alpha Dental")], PLACES, "key", search=search,
-                            read=read, pause=no_pause, saved_path=saved)  # fmt: skip
-    assert searched and results[0].outcome == FOUND
-    assert "gone.test" not in saved.read_text()
-
-
-def test_a_damaged_saved_file_is_ignored(tmp_path):
-    saved = tmp_path / "found.json"
-    saved.write_text("not json")
-    results = find_websites([Organisation("Alpha Dental")], PLACES, "key",
-                            search=lambda q, k: ["https://alphadental.test/"], read=read,
-                            pause=no_pause, saved_path=saved)  # fmt: skip
-    assert results[0].outcome == FOUND
+    for _ in range(2):
+        results = find_websites([org], PLACES, "key", search=search, read=read, pause=no_pause)
+        assert results[0].outcome == FOUND
+    assert len(searched) == 2
+    assert not any(tmp_path.rglob("*"))

@@ -43,7 +43,6 @@ from org_research_agent.settings import DEFAULT_SETTINGS_PATH, SettingsError, lo
 from org_research_agent.website_lookup import (
     FOUND,
     NOT_FOUND,
-    SAVED,
     WebsiteLookupError,
     find_websites,
 )
@@ -137,12 +136,11 @@ def main(
             print(f"Error: {error}", file=sys.stderr)
             return 2
         organisations = [result.organisation for result in lookups]
-        found_by_search = {r.organisation.name for r in lookups if r.outcome in {FOUND, SAVED}}
+        found_by_search = {r.organisation.name for r in lookups if r.outcome == FOUND}
         outcomes = Counter(result.outcome for result in lookups)
         print(
             f"Website lookup: {outcomes[FOUND]} found by search, "
-            f"{outcomes[SAVED]} saved from earlier searches, "
-            f"{len(lookups) - outcomes[FOUND] - outcomes[SAVED] - outcomes[NOT_FOUND]} "
+            f"{len(lookups) - outcomes[FOUND] - outcomes[NOT_FOUND]} "
             f"listed websites confirmed, {outcomes[NOT_FOUND]} not found "
             f"({sum(r.searches for r in lookups)} searches)."
         )
