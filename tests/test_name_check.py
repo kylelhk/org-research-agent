@@ -240,8 +240,16 @@ def test_profile_urls_are_flagged(url):
         ("https://example.test/people", True),
         ("https://example.test/", False),
         ("https://example.test/about", False),
-        ("https://example.test/services/team-building.html", False),
-        ("https://example.test/news/our-staff-party-2026", False),
+        ("https://example.test/about-us/meet-our-support-team/", True),
+        ("https://example.test/doctors-team-testvale-medical-centre/", True),
+        ("https://example.test/our-gps", True),
+        ("https://example.test/meet_the_dentists.php", True),
+        # A team word anywhere blocks the page. These may not list staff, but a staff
+        # party post often names people, and missing a page costs less than reading one.
+        ("https://example.test/services/team-building.html", True),
+        ("https://example.test/news/our-staff-party-2026", True),
+        ("https://example.test/services/teeth-whitening", False),
+        ("https://example.test/steamed-towels", False),
         ("https://example.test/contact.html", False),
     ],
 )

@@ -128,6 +128,14 @@ TEAM_SEGMENTS = set(
     our-physiotherapists pharmacists profile profiles bio bios
     """.split()
 )
+# A word in an address segment, such as "team" in "doctors-team-carlisle", that marks
+# a page about the practice's people however the rest of the address is worded.
+TEAM_WORDS = set(
+    """
+    team teams staff people practitioners doctors dentists clinicians providers
+    physiotherapists pharmacists gps
+    """.split()
+)
 URL_FILE_WORDS = {"html", "htm", "php", "aspx", "index"}
 NAME_QUERY_KEYS = {"name", "practitioner", "doctor", "dentist", "staff", "provider", "clinician"}
 
@@ -291,13 +299,17 @@ def looks_like_team_page(url: str) -> bool:
     """True if the URL's path looks like a team or staff page, such as /our-team/.
 
     Team pages list staff by name, so they are not read at all. This catches the page
-    from its address alone, before anything is downloaded.
+    from its address alone, before anything is downloaded. A team word anywhere in a
+    segment counts, so /meet-our-support-team/ and /doctors-team-carlisle/ are caught.
+    Blocking an ordinary page by mistake costs little; reading a team page does not.
     """
     segments = [segment for segment in unquote(urlsplit(url).path).lower().split("/") if segment]
     if segments and segments[-1].rsplit(".", 1)[0] in URL_FILE_WORDS:
         segments = segments[:-1]
     names = [segment.rsplit(".", 1)[0] for segment in segments]
-    return any(name in TEAM_SEGMENTS for name in names)
+    return any(
+        name in TEAM_SEGMENTS or TEAM_WORDS & set(re.split(r"[^a-z]+", name)) for name in names
+    )
 
 
 def ensure_no_names(
