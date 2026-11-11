@@ -9,7 +9,7 @@ A Python program that uses Claude Code in non-interactive mode (`claude -p`) to 
 - Read each organisation's own website only, with a page cap, and respect robots.txt and terms.
 - Take staff size only from a number the website states, such as "our team of eight". Team and staff pages are never passed to the agent, because they list staff by name. Any output containing a name is rejected.
 - Mark "unknown" or "couldn't read" instead of guessing.
-- Give Claude Code one tool only, a custom `fetch_page` MCP tool, instead of the built-in web fetch. The agent chooses which pages to read, but the tool enforces the rules in code: own website only, robots.txt, a page cap, and no team or staff pages. A team page is caught from its address before it is opened, or from its title or main heading after download, when its text is dropped on this computer. Every request is logged without page content.
+- Give Claude Code one tool only, a custom `fetch_page` MCP tool, instead of the built-in web fetch. The agent chooses which pages to read, but the tool enforces the rules in code: own website only, robots.txt, a page cap, and no team or staff pages. A team page is caught from its address before it is opened, or from its title or main heading after download, when its text is dropped on this computer. Names on the pages it does read, such as staff listed in a menu or a signed letter, are replaced with `[name]` before the text leaves the computer, using the same strict word test as the output check, so some ordinary words are replaced too. Links whose address may name a person are left out of the link list the agent sees. Every request is logged without page content.
 - Keep no session records.
 - Write results to an Excel file for a human to review.
 

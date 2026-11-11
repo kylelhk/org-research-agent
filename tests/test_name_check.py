@@ -8,7 +8,9 @@ from org_research_agent.name_check import (
     check_for_names,
     check_source_url,
     ensure_no_names,
+    link_may_name_person,
     looks_like_team_page,
+    mask_names,
 )
 
 # What the program would pass in: the org's own name, suburbs, and local places.
@@ -255,3 +257,50 @@ def test_profile_urls_are_flagged(url):
 )
 def test_team_page_urls(url, team):
     assert looks_like_team_page(url) is team
+
+
+# Masking names before the AI sees a page.
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("Dr Sarah Chen and Kyle Tam", "Dr [name] [name] and [name] [name]"),
+        ("dr wei li", "dr [name] [name]"),
+        ("Ms Jo", "Ms [name]"),
+        ("Call 0412 345 678", "Call [mobile number]"),
+        ("Email sarah@clinic.test", "Email [name]"),
+        ("Email info@clinic.test", "Email info@clinic.test"),
+        (
+            "Bulk billing for children, Monday to Friday.",
+            "Bulk billing for children, Monday to Friday.",
+        ),
+        ("Our team of 6 at Archer Street Physio", "Our team of 6 at Archer Street Physio"),
+        ("Archer Physio and Archer", "Archer Physio and Archer"),
+        ("张伟 is here", "[name] is here"),
+    ],
+)
+def test_mask_names(text, expected):
+    masked, _ = mask_names(text, ("Archer Street Physio", "Archer Physio"))
+    assert masked == expected
+
+
+def test_mask_names_counts_replacements():
+    assert mask_names("Dr Sarah Chen", ())[1] == 2
+    assert mask_names("Open Monday", ())[1] == 0
+
+
+@pytest.mark.parametrize(
+    ("url", "expected"),
+    [
+        ("https://a.test/about-us/", False),
+        ("https://a.test/contact-us/", False),
+        ("https://a.test/root-canal-treatment/", False),
+        ("https://a.test/about-us/kyle-tam/", True),
+        ("https://a.test/about-us/dr-kyle-tam/", True),
+        ("https://a.test/our-team/", True),
+        ("https://a.test/archer-street-physio/", False),
+    ],
+)
+def test_link_may_name_person(url, expected):
+    assert link_may_name_person(url, ("Archer Street Physio",)) is expected

@@ -58,6 +58,13 @@ ORDINARY_WORDS = set(
     when where while will yes
     monday tuesday wednesday thursday friday saturday sunday january february march april
     may june july august september october november december
+    all rights reserved copyright founded since dear regards kind thank thanks terms
+    conditions payment payments options news blog gallery reviews testimonials links
+    resources forms fillings crowns bridges veneers whitening teeth tooth root canal
+    mouthguards mouthguard cleaning clean gum gums wisdom removal extraction extractions
+    dentures sleep orthotics foot feet ankle knee back neck shoulder pain headaches
+    vaccinations scripts compounding dispensary vitamins counselling assessment
+    assessments rebates rebate cancellation hydrotherapy
     """.split()
 )
 
@@ -68,7 +75,7 @@ KNOWN_TERMS = set(
     qip racgp fracgp acrrm ada apa aca psa pilates invisalign hotdoc healthengine mygov
     eftpos afterpay visa mastercard amex covid australia australian western perth wa nsw
     vic qld sa tas nt act gp smsf acl abn pdf faq ecg mri ct ot rn en bds dds mbbs bsc phd
-    fracds cdbs ms tel ph
+    fracds cdbs ms tel ph st rd ave hwy pde cres
     """.split()
 )
 
@@ -249,6 +256,82 @@ def check_for_names(text: str, allowed_terms: Iterable[str] = ()) -> NameCheckRe
     return _result(reasons)
 
 
+NAME_MASK = "[name]"
+TITLE_THEN_WORD = re.compile(
+    r"(?i)\b(dr|drs|mr|mrs|mx|ms|miss|prof|doctor|professor)(\.?\s+)([^\W\d_][\w'’-]*)"
+)
+
+
+def _protected_spans(text: str, allowed_terms: Iterable[str]) -> list[tuple[int, int]]:
+    """Where the organisation's own name and places appear, so they are left alone."""
+    spans = []
+    for term in {term.strip() for term in allowed_terms if term.strip()}:
+        pattern = re.compile(r"(?<![^\W_])" + re.escape(term) + r"(?![^\W_])", re.IGNORECASE)
+        spans.extend(match.span() for match in pattern.finditer(text))
+    return spans
+
+
+def _is_possible_name(word: str, allowed: set[str]) -> bool:
+    """The same word test as check_for_names, for one word."""
+    base = _base(word)
+    if _has_non_latin_letters(word):
+        return True
+    if base in GIVEN_NAMES and (word[0].isupper() or base not in AMBIGUOUS_NAMES):
+        return True
+    return word[0].isupper() and not _is_known(base, allowed)
+
+
+def mask_names(text: str, allowed_terms: Iterable[str] = ()) -> tuple[str, int]:
+    """Replace every word the output check would reject with [name], before the AI sees it.
+
+    Uses the same strict rule as check_for_names, so many ordinary words (brand names,
+    menu labels) are replaced too. That is the intended trade: the agent only needs
+    the practice type, a stated staff number, and published contact details, and a name
+    that is never shown to the AI cannot be stored, logged, or repeated by it.
+    Personal emails and mobile numbers are replaced the same way.
+    Returns the masked text and how many replacements were made.
+    """
+    allowed_terms = tuple(allowed_terms)
+    text = unicodedata.normalize("NFKC", text)
+    count = 0
+
+    def replace_email(match: re.Match) -> str:
+        nonlocal count
+        if check_contact(match.group(), allowed_terms).found:
+            count += 1
+            return NAME_MASK
+        return match.group()
+
+    def replace_mobile(match: re.Match) -> str:
+        nonlocal count
+        count += 1
+        return "[mobile number]"
+
+    def replace_after_title(match: re.Match) -> str:
+        nonlocal count
+        count += 1
+        return match.group(1) + match.group(2) + NAME_MASK
+
+    text = EMAIL.sub(replace_email, text)
+    text = MOBILE.sub(replace_mobile, text)
+    text = TITLE_THEN_WORD.sub(replace_after_title, text)
+
+    _, extra_words = _mask_allowed_terms(text, allowed_terms)
+    allowed = ORDINARY_WORDS | KNOWN_TERMS | TITLE_WORDS | extra_words | {"miss"}
+    protected = _protected_spans(text, allowed_terms)
+    pieces, last = [], 0
+    for match in WORD.finditer(text):
+        start, end = match.span()
+        if any(a <= start and end <= b for a, b in protected):
+            continue
+        if _is_possible_name(match.group(), allowed):
+            pieces.append(text[last:start] + NAME_MASK)
+            last = end
+            count += 1
+    pieces.append(text[last:])
+    return "".join(pieces), count
+
+
 def check_contact(value: str, allowed_terms: Iterable[str] = ()) -> NameCheckResult:
     """Check a published contact field. Generic mailboxes are fine, personal ones are not."""
     reasons: set[str] = set()
@@ -310,6 +393,27 @@ def looks_like_team_page(url: str) -> bool:
     return any(
         name in TEAM_SEGMENTS or TEAM_WORDS & set(re.split(r"[^a-z]+", name)) for name in names
     )
+
+
+def link_may_name_person(url: str, allowed_terms: Iterable[str] = ()) -> bool:
+    """True if a link's address may name a person or lead to a team page.
+
+    Such links are left out of the list the agent sees, because the address itself
+    can carry a name, such as /about-us/sarah-chen/. Besides the profile and team
+    checks, an address segment made only of two to four unfamiliar words is treated
+    as a possible name.
+    """
+    if check_source_url(url).found or looks_like_team_page(url):
+        return True
+    _, extra_words = _mask_allowed_terms("", allowed_terms)
+    safe = ORDINARY_WORDS | KNOWN_TERMS | URL_FILE_WORDS | TITLE_WORDS | extra_words
+    for segment in unquote(urlsplit(url).path).lower().split("/"):
+        words = [word for word in re.split(r"[^a-z]+", segment.rsplit(".", 1)[0]) if word]
+        if _has_non_latin_letters(segment):
+            return True
+        if 2 <= len(words) <= 4 and not any(_is_known(word, safe) for word in words):
+            return True
+    return False
 
 
 def ensure_no_names(

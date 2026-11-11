@@ -340,9 +340,53 @@ def test_agent_text_keeps_visible_text_and_same_site_links():
     fetcher, _ = make({"https://clinic.test/": HOME})
     result = fetcher.fetch("https://clinic.test/")
     assert "Welcome" in result and "friendly family practice" in result
-    assert "https://clinic.test/our-team" in result
     assert "https://www.clinic.test/contact" in result
     assert "BEGIN UNTRUSTED PAGE CONTENT" in result
+
+
+MENU_PAGE = f"""
+<html><head><title>Testvale Dental | Dr Sarah Chen</title></head>
+<body>
+  <nav>
+    <a href="/about-us/">About Us</a>
+    <a href="/about-us/dr-sarah-chen/">Dr Sarah Chen</a>
+    <a href="/about-us/kyle-tam/">Kyle Tam</a>
+    <a href="/about-us/meet-our-support-team/">Meet our support team</a>
+    <a href="/contact-us/">Contact us</a>
+  </nav>
+  <p>{FILLER}</p>
+  <p>Call 0412 345 678 or email sarah.chen@testvale.test or info@testvale.test.</p>
+  <p>Testvale Dental has 4 dentists in East Testvale.</p>
+</body></html>
+"""
+
+
+def test_names_in_menus_and_links_never_reach_the_agent():
+    web = FakeWeb({"https://clinic.test/": MENU_PAGE})
+    fetcher = PageFetcher(HOST, 5, get=web, allowed_terms=("Testvale Dental", "East Testvale"))
+    result = fetcher.fetch("https://clinic.test/")
+    for name in ("Sarah", "Chen", "sarah-chen", "Kyle", "Tam", "kyle-tam", "0412", "sarah.chen"):
+        assert name not in result
+    assert "Page title: Testvale Dental | Dr [name] [name]" in result
+    assert "Testvale Dental has 4 dentists in East Testvale." in result
+    assert "info@testvale.test" in result
+    assert "[mobile number]" in result
+    assert "https://clinic.test/about-us/" in result
+    assert "https://clinic.test/contact-us/" in result
+    assert "meet-our-support-team" not in result
+    assert "Words that may be names were replaced with [name]." in result
+    assert "Links that may name a person removed: 3." in result
+
+
+def test_saved_evidence_holds_the_masked_text(tmp_path):
+    web = FakeWeb({"https://clinic.test/": MENU_PAGE})
+    evidence = tmp_path / "evidence.jsonl"
+    fetcher = PageFetcher(
+        HOST, 5, get=web, evidence_path=evidence, allowed_terms=("Testvale Dental",)
+    )
+    fetcher.fetch("https://clinic.test/")
+    saved = evidence.read_text()
+    assert "Sarah" not in saved and "Chen" not in saved
 
 
 def test_agent_text_drops_scripts_hidden_content_and_off_site_links():

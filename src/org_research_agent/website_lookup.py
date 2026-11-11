@@ -153,10 +153,13 @@ def brave_search(query: str, api_key: str, timeout: int = 20) -> list[str]:
     return [r["url"] for r in results if isinstance(r, dict) and isinstance(r.get("url"), str)]
 
 
-def _page_text(url: str) -> str:
-    """A home page's text, read under the fetch tool's rules, or "" if it can't be read."""
+def _page_text(url: str, allowed_terms: tuple[str, ...] = ()) -> str:
+    """A home page's text, read under the fetch tool's rules, or "" if it can't be read.
+
+    The organisation's name and places are passed so the name masking leaves them be.
+    """
     host = urlsplit(url).hostname or ""
-    text = PageFetcher(host, max_pages=1).fetch(url)
+    text = PageFetcher(host, max_pages=1, allowed_terms=allowed_terms).fetch(url)
     return "" if text.startswith(("BLOCKED", "ERROR")) else text
 
 
@@ -189,10 +192,11 @@ def find_website(
     places: tuple[str, ...],
     api_key: str,
     search: Callable[[str, str], list[str]] = brave_search,
-    read: Callable[[str], str] = _page_text,
+    read: Callable[[str], str] | None = None,
     saved_url: str | None = None,
 ) -> LookupResult:
     """Keep a listed or saved website that works, or search for one the page confirms."""
+    read = read or (lambda url: _page_text(url, (org.name, *places)))
     if org.website and _confirms(home_page(org.website), org, places, read):
         return LookupResult(org, CHECKED)
     if saved_url and _confirms(saved_url, org, places, read):
@@ -244,7 +248,7 @@ def find_websites(
     places: tuple[str, ...],
     api_key: str | None = None,
     search: Callable[[str, str], list[str]] = brave_search,
-    read: Callable[[str], str] = _page_text,
+    read: Callable[[str], str] | None = None,
     pause: Callable[[float], None] = time.sleep,
     saved_path: Path | None = DEFAULT_SAVED_PATH,
 ) -> list[LookupResult]:
