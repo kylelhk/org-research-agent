@@ -285,6 +285,22 @@ def test_mask_names(text, expected):
     assert masked == expected
 
 
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        # A surname that is also an ordinary or place word goes with the first name.
+        ("Dr April Day and Nurse Jenny Park", "Dr [name] [name] and Nurse [name] [name]"),
+        ("Our dentists: Sarah Young, Priya Street", "Our dentists: [name] [name], [name] [name]"),
+        ("Meet Dr Victoria Park", "Meet Dr [name] [name]"),
+        ("Mary O'Brien-Smith", "[name] [name]-[name]"),
+        # The punctuation ends the name, so ordinary words after it stay.
+        ("Sarah Chen. Open Monday", "[name] [name]. Open Monday"),
+    ],
+)
+def test_mask_names_takes_the_whole_name(text, expected):
+    assert mask_names(text, ("Victoria Park",))[0] == expected
+
+
 def test_mask_names_counts_replacements():
     assert mask_names("Dr Sarah Chen", ())[1] == 2
     assert mask_names("Open Monday", ())[1] == 0

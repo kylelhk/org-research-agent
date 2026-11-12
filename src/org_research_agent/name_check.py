@@ -257,6 +257,8 @@ def check_for_names(text: str, allowed_terms: Iterable[str] = ()) -> NameCheckRe
 
 
 NAME_MASK = "[name]"
+# What may sit between two parts of one name: a space, hyphen, or apostrophe.
+NAME_JOIN = re.compile(r"[ \t\-'’]{1,2}")
 TITLE_THEN_WORD = re.compile(
     r"(?i)\b(dr|drs|mr|mrs|mx|ms|miss|prof|doctor|professor)(\.?\s+)([^\W\d_][\w'’-]*)"
 )
@@ -319,15 +321,29 @@ def mask_names(text: str, allowed_terms: Iterable[str] = ()) -> tuple[str, int]:
     _, extra_words = _mask_allowed_terms(text, allowed_terms)
     allowed = ORDINARY_WORDS | KNOWN_TERMS | TITLE_WORDS | extra_words | {"miss"}
     protected = _protected_spans(text, allowed_terms)
-    pieces, last = [], 0
+    pieces, last, name_end = [], 0, None
     for match in WORD.finditer(text):
         start, end = match.span()
-        if any(a <= start and end <= b for a, b in protected):
+        word = match.group()
+        if word == "name" and text[start - 1 : end + 1] == NAME_MASK:
+            name_end = end + 1  # Already masked after a title.
             continue
-        if _is_possible_name(match.group(), allowed):
+        if any(a <= start and end <= b for a, b in protected):
+            name_end = None
+            continue
+        # A capitalised word straight after a masked one is treated as part of the same
+        # name, so a surname that is also an ordinary or place word ("Day", "Park") goes too.
+        joined = (
+            name_end is not None
+            and word[0].isupper()
+            and NAME_JOIN.fullmatch(text[name_end:start]) is not None
+        )
+        if joined or _is_possible_name(word, allowed):
             pieces.append(text[last:start] + NAME_MASK)
-            last = end
+            last = name_end = end
             count += 1
+        else:
+            name_end = None
     pieces.append(text[last:])
     return "".join(pieces), count
 

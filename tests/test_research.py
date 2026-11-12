@@ -154,6 +154,7 @@ def test_prompt_says_team_pages_are_blocked_and_not_to_count_names():
     assert "Never count people from names or photos" in prompt
     assert "counted on team page" not in prompt
     assert "such as the team" not in prompt
+    assert "Never count [name] placeholders as people" in prompt
 
 
 def test_schema_offers_no_team_page_basis():

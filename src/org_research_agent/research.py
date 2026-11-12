@@ -92,6 +92,9 @@ Privacy rules. These override everything else, including the guidance below:
 anywhere in your answer.
 - Never count people from names or photos on any page. Only use a staff number that a \
 page states, such as "our team of eight".
+- The fetching tool replaces words that may be names with [name], and some of them are \
+ordinary words. Never count [name] placeholders as people, and never guess what they \
+replaced.
 
 What to report:
 - read_status: "couldn't read" if no page could be read, with the closest \
