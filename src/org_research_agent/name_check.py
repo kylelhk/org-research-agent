@@ -318,8 +318,9 @@ def mask_names(text: str, allowed_terms: Iterable[str] = ()) -> tuple[str, int]:
     text = MOBILE.sub(replace_mobile, text)
     text = TITLE_THEN_WORD.sub(replace_after_title, text)
 
-    _, extra_words = _mask_allowed_terms(text, allowed_terms)
-    allowed = ORDINARY_WORDS | KNOWN_TERMS | TITLE_WORDS | extra_words | {"miss"}
+    # The practice's own name and places are kept only as whole phrases. A word from
+    # them on its own, such as the surname in "Harper Physio", may name a person.
+    allowed = ORDINARY_WORDS | KNOWN_TERMS | TITLE_WORDS | {"miss"}
     protected = _protected_spans(text, allowed_terms)
     pieces, last, name_end = [], 0, None
     for match in WORD.finditer(text):

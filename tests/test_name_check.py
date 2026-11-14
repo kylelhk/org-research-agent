@@ -276,7 +276,7 @@ def test_team_page_urls(url, team):
             "Bulk billing for children, Monday to Friday.",
         ),
         ("Our team of 6 at Archer Street Physio", "Our team of 6 at Archer Street Physio"),
-        ("Archer Physio and Archer", "Archer Physio and Archer"),
+        ("Archer Physio and Archer", "Archer Physio and [name]"),
         ("张伟 is here", "[name] is here"),
     ],
 )
@@ -299,6 +299,16 @@ def test_mask_names(text, expected):
 )
 def test_mask_names_takes_the_whole_name(text, expected):
     assert mask_names(text, ("Victoria Park",))[0] == expected
+
+
+def test_mask_names_keeps_the_practice_name_only_as_a_whole_phrase():
+    allowed = ("Harper Physio", "Victoria Park")
+    assert mask_names("Welcome to Harper Physio in Victoria Park.", allowed)[0] == (
+        "Welcome to Harper Physio in Victoria Park."
+    )
+    assert mask_names("Harper is our principal physiotherapist.", allowed)[0] == (
+        "[name] is our principal physiotherapist."
+    )
 
 
 def test_mask_names_counts_replacements():

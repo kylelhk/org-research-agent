@@ -1,10 +1,10 @@
-"""Build a Word review pack from a folder of Markdown drafts.
+"""Build a Word content pack from a folder of Markdown drafts.
 
-One pack per folder: each draft (guide, emails, invitation, slides) under its
-own Heading 1, grouped by topic when there is more than one, then the source log
-and review notes if present, then a sign-off table. After the pack is built, it
-is the working copy: people edit it in Word with Track Changes, and content-check
-reads it directly.
+One pack per folder, in reading order: the invitation, the guides, the email
+sequences (grouped by topic when there is more than one), then the presentation
+text, each under its own Heading 1. The review notes and the source log, if
+present, come last for reference. The business owner approves the pack by email.
+After the pack is built, it is the working copy, and content-check reads it directly.
 
 Usage:
     content-pack private/content/pack --title "All content" --draft 1
@@ -40,13 +40,8 @@ INLINE = re.compile(
 NUMBERED = re.compile(r"\d+[.)]\s+")
 CHECKBOX = re.compile(r"[-*]\s+\[([ xX])\]\s+(.*)")
 LANDSCAPE_TEXT_WIDTH_CM = 25.7
-KIND_ORDER = {"guide": 0, "email": 1, "invitation": 2, "slides": 3}
-HOW_TO_REVIEW = [
-    "Turn on Track Changes (Review > Track Changes) before editing, so every change is visible.",
-    "Use comments for questions. Highlighted text marks a placeholder for the business owner.",
-    "Each fact is listed in the source log. Tick it once checked against the source.",
-    "Before running content-check, accept or reject all tracked changes.",
-]
+KIND_ORDER = {"invitation": 0, "guide": 1, "email": 2, "slides": 3}
+THEME_FONT_ATTRIBUTES = ("w:asciiTheme", "w:hAnsiTheme", "w:eastAsiaTheme", "w:cstheme")
 
 
 def _topic(path: Path) -> str:
@@ -77,9 +72,7 @@ def _brand(document: Document, font: str, table_fill: str | None) -> None:
     for name in ("Normal", "List Bullet", "Title", "Heading 1", "Heading 2", "Heading 3"):
         style = styles[name]
         style.font.name = font
-        fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
-        for attribute in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
-            fonts.set(qn(attribute), font)
+        _set_font(style, font)
         if name != "Normal" and name != "List Bullet":
             style.font.color.rgb = RGBColor(0, 0, 0)
             style.font.bold = True
@@ -96,6 +89,29 @@ def _brand(document: Document, font: str, table_fill: str | None) -> None:
     if table_fill:
         for shading in document.element.body.iter(qn("w:shd")):
             shading.set(qn("w:fill"), table_fill)
+
+
+def _set_font(style, font: str) -> None:
+    """Set every script slot to one font, and drop theme fonts, which would win."""
+    style.font.name = font
+    fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
+    for attribute in THEME_FONT_ATTRIBUTES:
+        fonts.attrib.pop(qn(attribute), None)
+    for attribute in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+        fonts.set(qn(attribute), font)
+
+
+def _one_font(document: Document, font: str) -> None:
+    """Use one font everywhere: every style, and the document defaults behind them."""
+    for style in document.styles:
+        if style.type in (1, 2):  # Paragraph and character styles.
+            _set_font(style, font)
+    # Any remaining theme font (table styles, document defaults) would show as Calibri.
+    for fonts in document.styles.element.iter(qn("w:rFonts")):
+        for attribute in THEME_FONT_ATTRIBUTES:
+            fonts.attrib.pop(qn(attribute), None)
+        for attribute in ("w:ascii", "w:hAnsi", "w:eastAsia", "w:cs"):
+            fonts.set(qn(attribute), font)
 
 
 def _add_logo(document: Document, logo: Path) -> None:
@@ -315,12 +331,11 @@ def _write_markdown(
 
 def _style(document: Document, landscape: bool = False) -> None:
     styles = document.styles
-    styles["Normal"].font.name = FONT
+    _one_font(document, FONT)
     styles["Normal"].font.size = Pt(11)
     styles["Normal"].paragraph_format.space_after = Pt(6)
     styles["List Bullet"].paragraph_format.space_after = Pt(2)
     for name, size in (("Title", 22), ("Heading 1", 16), ("Heading 2", 13), ("Heading 3", 11)):
-        styles[name].font.name = FONT
         styles[name].font.size = Pt(size)
     section = document.sections[0]
     section.page_height, section.page_width = Cm(29.7), Cm(21.0)
@@ -340,7 +355,7 @@ def build_pack(
     table_fill: str | None = None,
     logo: Path | None = None,
 ) -> Path:
-    """Build a review pack from the drafts, source log, and review notes in a folder.
+    """Build a content pack from the drafts, review notes, and source log in a folder.
 
     When the folder holds more than one topic, guides and emails are grouped by topic
     and their headings name it, such as "Investing: Email 2". A font restyles the pack
@@ -352,9 +367,8 @@ def build_pack(
     drafts = sorted(
         candidates,
         key=lambda p: (
-            KIND_ORDER[kind_of(p).kind] if KIND_ORDER[kind_of(p).kind] > 1 else 0,
-            topics.index(_topic(p)) if with_topic and _topic(p) in topics else 0,
             KIND_ORDER[kind_of(p).kind],
+            topics.index(_topic(p)) if with_topic and _topic(p) in topics else 0,
             kind_of(p).number or 0,
         ),
     )
@@ -365,12 +379,11 @@ def build_pack(
     _style(document)
     if logo:
         _add_logo(document, logo)
-    document.add_heading(f"{title}: review pack", level=0)
+    document.add_heading(title, level=0)
     today = date.today()
-    document.add_paragraph(f"Draft {draft}, built {today.day} {today:%B %Y}. For review.")
-    document.add_heading("How to review this pack", level=1)
-    for tip in HOW_TO_REVIEW:
-        document.add_paragraph(tip, style="List Bullet")
+    document.add_paragraph(f"Draft {draft}, {today.day} {today:%B %Y}.")
+    for path in drafts:
+        document.add_paragraph(_heading_title(path, with_topic), style="List Bullet")
 
     def new_page_heading(text: str) -> None:
         document.add_heading(text, level=1).paragraph_format.page_break_before = True
@@ -379,19 +392,14 @@ def build_pack(
         new_page_heading(_heading_title(path, with_topic))
         _write_markdown(document, path.read_text(), top_level=1)
 
-    for name, heading in (("source-log.md", "Source log"), ("review-notes.md", "Review notes")):
+    for name, heading in (("review-notes.md", "Review notes"), ("source-log.md", "Source log")):
         path = folder / name
         if path.is_file():
             new_page_heading(heading)
             text = re.sub(r"^#\s+.*\n", "", path.read_text(), count=1)
             _write_markdown(document, text, top_level=1)
 
-    new_page_heading("Sign-off")
-    rows = ["| Item | Consultant checked (date) | Business owner approved (date) | Notes |"]
-    rows += [f"| {_heading_title(p, with_topic)} | | | |" for p in drafts]
-    _table(document, rows)
-
-    output = output or folder / f"{title} - review pack - draft {draft}.docx"
+    output = output or folder / f"{title} - content pack - draft {draft}.docx"
     if font:
         _brand(document, font, table_fill)
     document.save(output)

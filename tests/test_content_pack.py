@@ -48,15 +48,13 @@ def headings(path):
 
 def test_pack_has_one_section_per_draft_in_order(tmp_path):
     pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1)
-    assert pack.name == "First home - review pack - draft 1.docx"
+    assert pack.name == "First home - content pack - draft 1.docx"
     assert headings(pack) == [
-        "How to review this pack",
+        "Invitation",
         "Guide",
         "Email 1",
         "Email 2",
-        "Invitation",
         "Source log",
-        "Sign-off",
     ]
 
 
@@ -110,7 +108,7 @@ def test_notes_and_sign_off_sections_are_not_checked(tmp_path):
     pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1)
     labels = [r.label for r in check_paths([pack])]
     assert not any(
-        label.endswith(("Source log", "Sign-off", "How to review this pack")) for label in labels
+        label.endswith(("Source log", "Review notes")) for label in labels
     )
 
 
@@ -145,7 +143,7 @@ def test_tracked_changes_must_be_accepted_first(tmp_path):
 def test_word_lock_files_are_skipped(tmp_path, capsys):
     folder = make_drafts(tmp_path / "drafts", email_2=GOOD_EMAIL_1.replace("1", "2"))
     build_pack(folder, "First home", 1)
-    (folder / "~$First home - review pack - draft 1.docx").write_bytes(b"lock")
+    (folder / "~$First home - content pack - draft 1.docx").write_bytes(b"lock")
     for path in folder.glob("*.md"):
         path.unlink()
     assert main([str(folder)]) == 0
@@ -157,7 +155,7 @@ def test_content_pack_command(tmp_path, capsys):
 
     folder = make_drafts(tmp_path / "drafts")
     assert pack_main([str(folder), "--title", "First home", "--draft", "2"]) == 0
-    assert (folder / "First home - review pack - draft 2.docx").is_file()
+    assert (folder / "First home - content pack - draft 2.docx").is_file()
     assert pack_main([str(tmp_path), "--title", "Empty"]) == 1
 
 
@@ -167,19 +165,33 @@ def test_two_topics_are_grouped_and_named(tmp_path):
     (folder / "investing-email-1.md").write_text(GOOD_EMAIL_1)
     pack = build_pack(folder, "All content", 1)
     assert headings(pack) == [
-        "How to review this pack",
+        "Invitation",
         "First home: Guide",
+        "Investing: Guide",
         "First home: Email 1",
         "First home: Email 2",
-        "Investing: Guide",
         "Investing: Email 1",
-        "Invitation",
         "Source log",
-        "Sign-off",
     ]
     # The checker still recognises each draft from its heading.
     labels = [result.label.split(" > ")[1] for result in check_paths([pack], DISCLAIMER)]
-    assert labels == headings(pack)[1:7]
+    assert labels == headings(pack)[:6]
+
+
+def test_every_style_uses_arial_with_no_theme_fonts(tmp_path):
+    pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1)
+    document = Document(str(pack))
+    xml = document.styles.element.xml
+    assert "asciiTheme" not in xml and "hAnsiTheme" not in xml
+    for name in ("Normal", "Heading 1", "Heading 2", "Title", "List Bullet"):
+        assert document.styles[name].font.name == "Arial"
+
+
+def test_pack_has_no_review_instructions_or_sign_off(tmp_path):
+    pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1)
+    text = "\n".join(p.text for p in Document(str(pack)).paragraphs)
+    assert "Track Changes" not in text
+    assert "Sign-off" not in text
 
 
 def test_pack_can_use_the_business_font(tmp_path):
