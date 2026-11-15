@@ -1,0 +1,185 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1260 724" width="1260" height="724" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+<defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#475569"/></marker>
+  <marker id="arrow-ext" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0 0 L10 5 L0 10 z" fill="#0284c7"/></marker>
+  <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+    <feDropShadow dx="0" dy="1.5" stdDeviation="2.2" flood-color="#0f172a" flood-opacity="0.10"/></filter>
+</defs>
+<rect width="1260" height="724" fill="#ffffff"/>
+<text x="30.0" y="44.0" font-size="22" font-weight="700" fill="#0f172a" text-anchor="start">How the research agent handles data</text>
+<text x="30.0" y="70.0" font-size="13.5" font-weight="400" fill="#64748b" text-anchor="start">Each outside service gets the least data it needs. The safeguards sit in code around the AI, not only in its instructions.</text>
+<rect x="18" y="92" width="1224" height="114" rx="14" fill="#f1f5f9"/>
+<text x="34.0" y="114.0" font-size="11" font-weight="700" fill="#64748b" text-anchor="start">OUTSIDE SERVICES</text>
+<rect x="18" y="290" width="1224" height="336" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="5 5"/>
+<text x="39.0" y="582.0" font-size="11" font-weight="700" fill="#64748b" text-anchor="start">LOCAL PROGRAM</text>
+<text x="39.0" y="598.0" font-size="11" font-weight="400" fill="#64748b" text-anchor="start">runs only when a person starts it,</text>
+<text x="39.0" y="612.0" font-size="11" font-weight="400" fill="#64748b" text-anchor="start">on the business owner's computer</text>
+<rect x="35" y="126" width="170" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<text x="120.0" y="152.0" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">OpenStreetMap</text>
+<text x="120.0" y="171.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="middle">public map data</text>
+<rect x="239" y="126" width="170" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<text x="324.0" y="152.0" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Brave Search API</text>
+<text x="324.0" y="171.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="middle">web search, no AI</text>
+<rect x="443" y="126" width="170" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<text x="528.0" y="152.0" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Claude model</text>
+<text x="528.0" y="171.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="middle">Anthropic, via Claude Code</text>
+<rect x="647" y="126" width="170" height="62" rx="10" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<text x="732.0" y="152.0" font-size="14" font-weight="700" fill="#334155" text-anchor="middle">Public websites</text>
+<text x="732.0" y="171.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="middle">each organisation's own</text>
+<line x1="107.0" y1="316" x2="107.0" y2="192" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<line x1="133.0" y1="192" x2="133.0" y2="316" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<text x="98.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">area and</text>
+<text x="98.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">types</text>
+<text x="142.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">names,</text>
+<text x="142.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">websites</text>
+<line x1="311.0" y1="316" x2="311.0" y2="192" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<line x1="337.0" y1="192" x2="337.0" y2="316" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<text x="302.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">business name</text>
+<text x="302.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">and suburb</text>
+<text x="346.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">website</text>
+<text x="346.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">address only</text>
+<line x1="515.0" y1="316" x2="515.0" y2="192" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<line x1="541.0" y1="192" x2="541.0" y2="316" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<text x="506.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">masked text,</text>
+<text x="506.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">fit criteria</text>
+<text x="550.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">structured</text>
+<text x="550.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">answer</text>
+<line x1="719.0" y1="316" x2="719.0" y2="192" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<line x1="745.0" y1="192" x2="745.0" y2="316" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<text x="710.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">page</text>
+<text x="710.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="end">request</text>
+<text x="754.0" y="238.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">page</text>
+<text x="754.0" y="252.0" font-size="11" font-weight="500" fill="#334155" text-anchor="start">(checked locally)</text>
+<rect x="35" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M35 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#334155"/>
+<circle cx="57" cy="374" r="12" fill="#334155" fill-opacity="0.12"/>
+<text x="57.0" y="378.5" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">1</text>
+<text x="76.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Find organisations</text>
+<text x="49.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">map search by area</text>
+<line x1="49" y1="412" x2="191" y2="412" stroke="#e2e8f0"/>
+<circle cx="55" cy="430" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M52.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="67.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Sends area and types only</text>
+<circle cx="55" cy="449" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M52.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="67.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Hand-added list as backup</text>
+<rect x="239" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M239 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#334155"/>
+<circle cx="261" cy="374" r="12" fill="#334155" fill-opacity="0.12"/>
+<text x="261.0" y="378.5" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">2</text>
+<text x="280.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Website lookup</text>
+<text x="253.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">fills missing websites</text>
+<line x1="253" y1="412" x2="395" y2="412" stroke="#e2e8f0"/>
+<circle cx="259" cy="430" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M256.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="271.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">No AI in this step</text>
+<circle cx="259" cy="449" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M256.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="271.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Result text discarded unread</text>
+<circle cx="259" cy="468" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M256.4 468 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="271.0" y="472.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Nothing cached between runs</text>
+<circle cx="259" cy="487" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M256.4 487 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="271.0" y="491.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Site confirmed by its own page</text>
+<rect x="443" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M443 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#4f46e5"/>
+<circle cx="465" cy="374" r="12" fill="#4f46e5" fill-opacity="0.12"/>
+<text x="465.0" y="378.5" font-size="12.5" font-weight="700" fill="#4f46e5" text-anchor="middle">3</text>
+<text x="484.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Research agent</text>
+<text x="457.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">Claude Code, headless</text>
+<line x1="457" y1="412" x2="599" y2="412" stroke="#e2e8f0"/>
+<circle cx="463" cy="430" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M460.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="475.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">No built-in tools</text>
+<circle cx="463" cy="449" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M460.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="475.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">One tool: the fetch gate</text>
+<circle cx="463" cy="468" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M460.4 468 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="475.0" y="472.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Answer must fit a schema</text>
+<circle cx="463" cy="487" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M460.4 487 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="475.0" y="491.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Page text treated as untrusted</text>
+<circle cx="463" cy="506" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M460.4 506 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="475.0" y="510.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Spending and time caps</text>
+<rect x="647" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M647 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#059669"/>
+<circle cx="669" cy="374" r="12" fill="#059669" fill-opacity="0.12"/>
+<text x="669.0" y="378.5" font-size="12.5" font-weight="700" fill="#059669" text-anchor="middle">4</text>
+<text x="688.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Fetch gate (MCP)</text>
+<text x="661.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">our own tool, in code</text>
+<line x1="661" y1="412" x2="803" y2="412" stroke="#e2e8f0"/>
+<circle cx="667" cy="430" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Own website only</text>
+<circle cx="667" cy="449" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Respects robots.txt</text>
+<circle cx="667" cy="468" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 468 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="472.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Page cap per organisation</text>
+<circle cx="667" cy="487" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 487 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="491.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Team pages blocked</text>
+<circle cx="667" cy="506" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 506 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="510.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Likely personal info masked</text>
+<circle cx="667" cy="525" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M664.4 525 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="679.0" y="529.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Log keeps no page text</text>
+<rect x="851" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M851 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#059669"/>
+<circle cx="873" cy="374" r="12" fill="#059669" fill-opacity="0.12"/>
+<text x="873.0" y="378.5" font-size="12.5" font-weight="700" fill="#059669" text-anchor="middle">5</text>
+<text x="892.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Validation</text>
+<text x="865.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">rules applied in code</text>
+<line x1="865" y1="412" x2="1007" y2="412" stroke="#e2e8f0"/>
+<circle cx="871" cy="430" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M868.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="883.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Fit rating decided by code</text>
+<circle cx="871" cy="449" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M868.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="883.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Quotes checked against pages</text>
+<circle cx="871" cy="468" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M868.4 468 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="883.0" y="472.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Personal info rejected</text>
+<circle cx="871" cy="487" r="5.5" fill="#059669" fill-opacity="0.14"/>
+<path d="M868.4 487 l1.9 2 l3.4 -3.8" fill="none" stroke="#059669" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="883.0" y="491.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">One retry, then flagged</text>
+<rect x="1055" y="340" width="170" height="212" rx="12" fill="#ffffff" stroke="#cbd5e1" filter="url(#shadow)"/>
+<path d="M1055 352 a12 12 0 0 1 12 -12 h146 a12 12 0 0 1 12 12 v4 h-170 z" fill="#d97706"/>
+<circle cx="1077" cy="374" r="12" fill="#d97706" fill-opacity="0.12"/>
+<text x="1077.0" y="378.5" font-size="12.5" font-weight="700" fill="#d97706" text-anchor="middle">6</text>
+<text x="1096.0" y="379.0" font-size="13.5" font-weight="700" fill="#0f172a" text-anchor="start">Human review</text>
+<text x="1069.0" y="400.0" font-size="11.5" font-weight="400" fill="#64748b" text-anchor="start" font-style="italic">Excel list</text>
+<line x1="1069" y1="412" x2="1211" y2="412" stroke="#e2e8f0"/>
+<circle cx="1075" cy="430" r="5.5" fill="#d97706" fill-opacity="0.14"/>
+<path d="M1072.4 430 l1.9 2 l3.4 -3.8" fill="none" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1087.0" y="434.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Every row reviewed</text>
+<circle cx="1075" cy="449" r="5.5" fill="#d97706" fill-opacity="0.14"/>
+<path d="M1072.4 449 l1.9 2 l3.4 -3.8" fill="none" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1087.0" y="453.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Status set per row</text>
+<circle cx="1075" cy="468" r="5.5" fill="#d97706" fill-opacity="0.14"/>
+<path d="M1072.4 468 l1.9 2 l3.4 -3.8" fill="none" stroke="#d97706" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="1087.0" y="472.0" font-size="11" font-weight="400" fill="#334155" text-anchor="start">Nothing sent automatically</text>
+<line x1="207" y1="376" x2="236" y2="376" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="411" y1="376" x2="440" y2="376" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="1023" y1="376" x2="1052" y2="376" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="617" y1="376" x2="643" y2="376" stroke="#475569" stroke-width="2" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<path d="M528.0 554 V578 H936.0 V556" fill="none" stroke="#475569" stroke-width="2" marker-end="url(#arrow)"/>
+<text x="732.0" y="572.0" font-size="11" font-weight="500" fill="#334155" text-anchor="middle">answer</text>
+<rect x="30" y="654" width="14" height="14" rx="3" fill="#4f46e5"/>
+<text x="52.0" y="666.0" font-size="12" font-weight="500" fill="#334155" text-anchor="start">AI step</text>
+<rect x="129.2" y="654" width="14" height="14" rx="3" fill="#059669"/>
+<text x="151.2" y="666.0" font-size="12" font-weight="500" fill="#334155" text-anchor="start">Safeguard enforced in code</text>
+<rect x="353.79999999999995" y="654" width="14" height="14" rx="3" fill="#d97706"/>
+<text x="375.8" y="666.0" font-size="12" font-weight="500" fill="#334155" text-anchor="start">Human decision</text>
+<line x1="499.19999999999993" y1="662" x2="521.1999999999999" y2="662" stroke="#0284c7" stroke-width="2" marker-end="url(#arrow-ext)"/>
+<text x="529.2" y="666.0" font-size="12" font-weight="500" fill="#334155" text-anchor="start">Crosses to an outside service</text>
+<text x="1230.0" y="666.0" font-size="11" font-weight="400" fill="#64748b" text-anchor="end">Synthetic diagram: no client data</text>
+<text x="30.0" y="696.0" font-size="12" font-weight="400" fill="#64748b" text-anchor="start">The program emails and posts nothing. Its results stay in a local Excel list for a person to review.</text>
+</svg>

@@ -1,12 +1,45 @@
 # Org Research Agent
 
-A Python program that uses Claude Code in non-interactive mode (`claude -p`) to screen local organisations for fit, with privacy safeguards built in. It is built as part of the Victoria Park AI Business Boost program.
+[![Tests](https://github.com/kylelhk/org-research-agent/actions/workflows/tests.yml/badge.svg)](https://github.com/kylelhk/org-research-agent/actions/workflows/tests.yml)
 
-> Status: early build. This repository holds general-purpose code only. Client criteria, prompts, and any outputs stay in git-ignored private files.
+A Python program that uses Claude Code in headless mode (`claude -p`) to research local organisations from their public websites and rate how well each fits a business's outreach criteria, with privacy safeguards built into the code around the AI. It was built for a small business in the Victoria Park AI Business Boost program, and designed to be handed over for the owner to run on their own Mac.
+
+This repository holds the general-purpose code only. The client's criteria, prompts, lists, and content stay in git-ignored private files.
+
+## How it works
+
+![Data flow of the research agent: outside services above, the local program below, with the safeguards at each step](docs/data-flow.svg)
+
+1. **Find organisations.** The program asks OpenStreetMap for healthcare organisations in the target area, sending only the area and the organisation types.
+2. **Look up missing websites.** For organisations without a working website, it searches the business name and suburb with the Brave Search API. No AI is involved, result titles and snippets are discarded unread, and a site is accepted only if its own page names the organisation and the area.
+3. **Research each organisation.** Claude Code runs with **no built-in tools at all**. Its only tool is `fetch_page`, an MCP server written for this project, so the agent can choose which pages to read but cannot browse freely, run commands, or touch files.
+4. **Gate every page in code.** The fetch tool allows the organisation's own site only, respects robots.txt, caps the pages per organisation, and blocks team and staff pages by address or by heading. Before any text reaches the model, it replaces likely names with `[name]` using a strict allowlist of ordinary words and health terms, masks personal emails and mobile numbers, and drops links whose address may name a person. The request log keeps no page text.
+5. **Validate the answer in code.** The agent must answer in a JSON schema. The program then checks the shape again, verifies each quote against the sentences it actually read, rejects anything that looks like personal information, and applies the fit rule itself. A failed check gets one retry, then the row is flagged for a person.
+6. **Hand it to a person.** Results go to an Excel list with a status column. Nothing is emailed or posted.
+
+### Design decisions
+
+| Decision | Why |
+|---|---|
+| Safeguards in code, not only in the prompt | A prompt can be ignored or manipulated by text on a web page; code cannot |
+| A custom MCP fetch tool instead of the built-in web fetch | The rules (own site, robots.txt, page cap, blocked pages, masking, logging) are enforced on every request |
+| Page text treated as untrusted | Hidden instructions on a page are reported and ignored, tested with fictional clinic pages |
+| Fit decided by code from extracted facts | The model extracts; deterministic code decides, so ratings are consistent and auditable |
+| "Unknown" over a guess | Staff size comes only from a stated number or an openly stated sign, never from counting names |
+| No session records, no cached search results | Less data kept, and Brave's terms do not allow caching results |
+
+### Results so far
+
+- About **7 seconds per organisation** of agent time on a real list of 18 organisations, against the owner's estimate of 20 to 30 minutes each by hand. Her review time per organisation is still to be measured.
+- Accepting openly stated signs of several staff turned **4 of the 5 readable organisations** from "unknown" into rated fits, each backed by a verified quote.
+- **0 refused requests** on real sites. On the fictional test clinics, the safety checks passed 18 of 18 in the two live runs after the first run found a bug, which was fixed.
+- **417 automated tests**, run on every push.
+
+Known limits are listed in [`docs/limitations-and-readiness.docx`](docs/limitations-and-readiness.docx), and the test record is in [`docs/test-evidence/test-record.xlsx`](docs/test-evidence/test-record.xlsx).
 
 ## Design goals
 
-- Read each organisation's own website only, with a page cap, and respect robots.txt and terms.
+- Read each organisation's own website only, with a page cap, and respect robots.txt.
 - Take staff size only from a number the website states, such as "our team of eight". Team and staff pages are never passed to the agent, because they list staff by name. Any output containing a name is rejected. Where no number is stated, the settings can accept signs of several staff that a website states openly: practitioners in the plural ("our dentists"), more than one profession, or more than one location. The agent judges these from wording, never by counting names, and the rule is applied in code. A stated number always decides.
 - Mark "unknown" or "couldn't read" instead of guessing.
 - Give Claude Code one tool only, a custom `fetch_page` MCP tool, instead of the built-in web fetch. The agent chooses which pages to read, but the tool enforces the rules in code: own website only, robots.txt, a page cap, and no team or staff pages. A team page is caught from its address before it is opened, or from its title or main heading after download, when its text is dropped on this computer. Names on the pages it does read, such as staff listed in a menu or a signed letter, are replaced with `[name]` before the text leaves the computer, using the same strict word test as the output check, so some ordinary words are replaced too. Links whose address may name a person are left out of the link list the agent sees. Every request is logged without page content.
@@ -49,7 +82,7 @@ On a Mac, the `launchers` folder has three double-click files for the business o
 - **Run research agent.command** runs the agent, offers the website search when a Brave key is saved, and opens the results in Excel.
 - **Check content.command** asks for a Word file, runs `content-check` on it, and opens the results as a text file saved next to it. If `config/business-phone.private.txt` or `config/disclaimer.private.txt` exists, the business's own number and approved disclaimer are allowed.
 
-Both use the project's `.venv` if there is one.
+All three use the project's `.venv` if there is one.
 
 `--find-websites` fills the biggest gap in the map data: many practices have no website listed, or a mistyped one. Before the agent runs, it searches each such practice's name with the [Brave Search API](https://brave.com/search/api/), keeps only the result addresses (titles and snippets are dropped unread), skips directories and social media, and opens each home page under the fetch tool's rules. A site is accepted only if it names the practice and the local area, and the name is in its title or web address. The agent and its instructions are unchanged, and no page text from this step goes to the AI. It needs an API key in the `BRAVE_API_KEY` environment variable; the Search plan needs a card and includes $5 of free credit a month, about 1,000 searches. Brave's terms do not allow storing or caching search results, so nothing from a search is kept between runs. Each run searches again, about one search per practice without a working website, so results may vary a little from run to run. The only thing kept is each confirmed website address, in the results spreadsheet for review. The version without this step is tagged `v1-map-only`.
 
@@ -77,7 +110,10 @@ A review pack holds the content from one folder in reading order: invitation, gu
 ## Project layout
 
 ```text
-src/org_research_agent/   Package source
+src/org_research_agent/   Package source: agent runner, fetch tool, checks, Excel output, content tools
 tests/                    Automated tests
-config/                   Example settings (private copy is git-ignored)
+config/                   Example settings (private copies are git-ignored)
+launchers/                Double-click files for the business owner's Mac
+docs/                     Data-flow diagram, limitations, test record and evidence, handover templates
+test-site/                Fictional clinic pages used for live safety tests
 ```

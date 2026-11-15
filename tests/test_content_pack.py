@@ -107,9 +107,7 @@ def test_pack_findings_point_to_paragraphs(tmp_path):
 def test_notes_and_sign_off_sections_are_not_checked(tmp_path):
     pack = build_pack(make_drafts(tmp_path / "drafts"), "First home", 1)
     labels = [r.label for r in check_paths([pack])]
-    assert not any(
-        label.endswith(("Source log", "Review notes")) for label in labels
-    )
+    assert not any(label.endswith(("Source log", "Review notes")) for label in labels)
 
 
 def test_hidden_link_text_in_word_is_caught(tmp_path):
