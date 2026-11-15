@@ -228,6 +228,20 @@ def test_first_email_must_link_to_guide():
     assert any("link to the guide" in f.message for f in findings)
 
 
+def test_first_email_can_attach_the_guide_instead():
+    text = GOOD_EMAIL_1.replace(
+        "https://example.test/first-home-guide", "the guide, which is attached as a PDF"
+    )
+    findings = check(text, "first-home-email-1.md")
+    assert not any("link to the guide" in f.message for f in findings)
+
+
+def test_attachment_wording_must_mention_the_guide():
+    text = GOOD_EMAIL_1.replace("https://example.test/first-home-guide", "the attached file")
+    findings = check(text, "first-home-email-1.md")
+    assert any("link to the guide" in f.message for f in findings)
+
+
 def test_later_emails_do_not_need_the_guide_link():
     text = GOOD_EMAIL_1.replace("https://example.test/first-home-guide", "the guide")
     findings = check(text, "first-home-email-2.md")

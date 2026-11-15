@@ -208,6 +208,8 @@ OPT_OUT = re.compile(
 )
 ADVISER = re.compile(r"\baccountant\b|\b(?:licensed|financial|tax) adviser\b", re.IGNORECASE)
 FULL_LINK = re.compile(r"https://\S+")
+# The guide can instead go as an attachment, if the email says so.
+GUIDE_ATTACHED = re.compile(r"\battach(?:ed|ment)\b", re.IGNORECASE)
 PLACEHOLDER_SPAN = re.compile(r"\[PLACEHOLDER[^\]]*\]|\{\{[^}]*\}\}")
 LIST_ITEM = re.compile(r"^\s*(?:[-*>]|\d+[.)])\s+")
 WORD = re.compile(r"[A-Za-z][A-Za-z'-]*")
@@ -378,9 +380,17 @@ def _structure_findings(
         guide_links = [
             line for line in lines if FULL_LINK.search(line) and "unsubscribe" not in line.lower()
         ]
-        if kind.number == 1 and not guide_links:
+        guide_attached = any(
+            GUIDE_ATTACHED.search(line) and "guide" in line.lower() for line in lines
+        )
+        if kind.number == 1 and not guide_links and not guide_attached:
             findings.append(
-                Finding(FAIL, "C", 0, "The first email must link to the guide, shown in full.")
+                Finding(
+                    FAIL,
+                    "C",
+                    0,
+                    "The first email must link to the guide, shown in full, or say it's attached.",
+                )
             )
 
     if kind.kind == "invitation" and not OPT_OUT.search(text):
