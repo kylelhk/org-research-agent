@@ -43,8 +43,9 @@ org-research --find-websites  # First find missing or broken websites by search
 
 The map search often fails once and then works, so it is tried up to three times.
 
-On a Mac, the `launchers` folder has two double-click files for the business owner, so no commands need typing:
+On a Mac, the `launchers` folder has three double-click files for the business owner, so no commands need typing:
 
+- **Install or update.command** creates the project's `.venv` with Python 3.11 or newer, installs the program, and checks for Claude Code, the private settings file, and a saved Brave key (without showing it). It is safe to run again after downloading a new copy.
 - **Run research agent.command** runs the agent, offers the website search when a Brave key is saved, and opens the results in Excel.
 - **Check content.command** asks for a Word file, runs `content-check` on it, and opens the results as a text file saved next to it. If `config/business-phone.private.txt` or `config/disclaimer.private.txt` exists, the business's own number and approved disclaimer are allowed.
 
