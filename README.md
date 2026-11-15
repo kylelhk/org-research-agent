@@ -117,3 +117,7 @@ launchers/                Double-click files for the business owner's Mac
 docs/                     Data-flow diagram, limitations, test record and evidence, handover templates
 test-site/                Fictional clinic pages used for live safety tests
 ```
+
+## Licence
+
+The general code is released under the [MIT Licence](LICENSE). Client criteria, prompts, lists, and content are not part of this repository and are not covered by it.
