@@ -24,6 +24,16 @@ class ClaudeError(Exception):
     """Raised when a Claude Code call fails or returns an error."""
 
 
+class ClaudeSignInError(ClaudeError):
+    """Claude Code is not signed in, so every call will fail until someone signs in."""
+
+
+SIGN_IN_MESSAGE = (
+    "Claude Code is not signed in. Open Terminal, type claude, press Return, "
+    "and follow the steps to sign in. Then run the agent again."
+)
+
+
 @dataclass(frozen=True)
 class ClaudeResult:
     text: str
@@ -131,6 +141,11 @@ def run_claude(
         ) from error
 
     if completed.returncode != 0 or data.get("is_error"):
+        # Only a sign-in failure is recognised from the message; the text itself is not
+        # passed on, as other error replies could carry page content.
+        message = str(data.get("result", "")).lower()
+        if "authenticat" in message or "/login" in message or "not logged in" in message:
+            raise ClaudeSignInError(SIGN_IN_MESSAGE)
         raise ClaudeError(f"Claude Code reported an error: {data.get('subtype', 'unknown')}.")
 
     return ClaudeResult(

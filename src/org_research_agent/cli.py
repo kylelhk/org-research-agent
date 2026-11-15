@@ -17,7 +17,7 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from org_research_agent.claude_runner import run_claude
+from org_research_agent.claude_runner import ClaudeSignInError, run_claude
 from org_research_agent.excel import write_results
 from org_research_agent.fetch_summary import (
     OTHER_WEBSITES,
@@ -167,6 +167,12 @@ def main(
         # Ctrl+C stops the run, but the organisations already done are still saved.
         interrupted = True
         print("\nStopped. Saving the organisations finished so far.")
+    except ClaudeSignInError as error:
+        print(f"\n\nStopped: {error}")
+        if not results:
+            return 1
+        interrupted = True
+        print("Saving the organisations finished so far.")
 
     write_results(results, output_path, run_label=stamp)
     fits = Counter(result.fit for result in results)

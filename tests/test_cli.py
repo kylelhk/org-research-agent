@@ -4,7 +4,7 @@ import json
 
 from openpyxl import load_workbook
 
-from org_research_agent.claude_runner import ClaudeResult
+from org_research_agent.claude_runner import ClaudeResult, ClaudeSignInError
 from org_research_agent.cli import main
 from org_research_agent.excel import COLUMNS, STATUS_CHOICES
 from org_research_agent.organisation import Organisation
@@ -161,6 +161,33 @@ def test_ctrl_c_saves_finished_organisations(tmp_path, capsys):
     sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
     assert sheet.max_row == 2
     assert "Stopped" in capsys.readouterr().out
+
+
+def test_sign_in_failure_stops_the_run_at_once(tmp_path, capsys):
+    calls = []
+
+    def signed_out(*args, **kwargs):
+        calls.append(1)
+        raise ClaudeSignInError("Claude Code is not signed in.")
+
+    assert run(tmp_path, runner=signed_out) == 1
+    assert len(calls) == 1
+    assert "not signed in" in capsys.readouterr().out
+    assert not (tmp_path / "output" / "research-2026-11-08-0900.xlsx").exists()
+
+
+def test_sign_in_failure_midway_saves_finished_organisations(tmp_path, capsys):
+    calls = []
+
+    def signs_out_on_second(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 2:
+            raise ClaudeSignInError("Claude Code is not signed in.")
+        return fake_runner(*args, **kwargs)
+
+    assert run(tmp_path, runner=signs_out_on_second) == 130
+    sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
+    assert sheet.max_row == 2
 
 
 def test_spreadsheet_holds_no_page_text_or_logs(tmp_path):

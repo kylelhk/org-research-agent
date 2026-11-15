@@ -7,6 +7,7 @@ import pytest
 from org_research_agent import claude_runner
 from org_research_agent.claude_runner import (
     ClaudeError,
+    ClaudeSignInError,
     build_command,
     build_mcp_config,
     run_claude,
@@ -92,6 +93,26 @@ def test_error_flag_raises(monkeypatch, tmp_path):
     patch_run(monkeypatch, json.dumps({"is_error": True, "subtype": "error_max_budget_usd"}), 1)
     with pytest.raises(ClaudeError, match="error_max_budget_usd"):
         run_claude("hi", "clinic.test", 4, tmp_path / "log.jsonl")
+
+
+def test_expired_sign_in_raises_a_sign_in_error(monkeypatch, tmp_path):
+    reply = {
+        "is_error": True,
+        "subtype": "success",
+        "result": "Failed to authenticate: OAuth session expired and could not be refreshed",
+    }
+    patch_run(monkeypatch, json.dumps(reply))
+    with pytest.raises(ClaudeSignInError, match="Open Terminal, type claude"):
+        run_claude("hi", "clinic.test", 4, tmp_path / "log.jsonl")
+
+
+def test_other_error_text_is_not_passed_on(monkeypatch, tmp_path):
+    reply = {"is_error": True, "subtype": "error_during_execution", "result": "Page text here"}
+    patch_run(monkeypatch, json.dumps(reply), 1)
+    with pytest.raises(ClaudeError) as caught:
+        run_claude("hi", "clinic.test", 4, tmp_path / "log.jsonl")
+    assert not isinstance(caught.value, ClaudeSignInError)
+    assert "Page text" not in str(caught.value)
 
 
 def test_bad_json_raises(monkeypatch, tmp_path):

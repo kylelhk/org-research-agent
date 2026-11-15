@@ -26,7 +26,12 @@ from datetime import date
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from org_research_agent.claude_runner import ClaudeError, ClaudeResult, run_claude
+from org_research_agent.claude_runner import (
+    ClaudeError,
+    ClaudeResult,
+    ClaudeSignInError,
+    run_claude,
+)
 from org_research_agent.fetch_summary import count_lines, describe_refusals, read_entries, summarise
 from org_research_agent.fetcher import is_same_site
 from org_research_agent.name_check import check_contact, check_for_names, check_source_url
@@ -463,6 +468,9 @@ def _research(
                     evidence_path=evidence_path,
                     allowed_terms=allowed_terms,
                 )
+            except ClaudeSignInError:
+                # Every other organisation would fail the same way, so stop the run.
+                raise
             except ClaudeError:
                 result = _base_result(org, today)
                 result.notes.append("the agent run failed")
