@@ -22,6 +22,7 @@ COLUMNS = [
     ("Website", 30, lambda r: r.website),
     ("Published general contact", 26, lambda r: r.general_contact),
     ("Stated staff size", 22, lambda r: r.staff_size),
+    ("Signs of several staff", 30, lambda r: r.staff_signals),
     ("Fit", 12, lambda r: r.fit),
     ("Reason", 34, lambda r: r.fit_reason),
     ("Evidence quote", 50, lambda r: r.evidence),

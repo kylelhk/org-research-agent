@@ -113,3 +113,19 @@ def test_example_file_is_refused():
     # The shipped example still has a placeholder prompt, so it must not load.
     with pytest.raises(SettingsError, match="placeholder"):
         load_settings("config/settings.example.toml")
+
+
+def test_staff_signals_default_to_off(tmp_path):
+    settings = load_settings(write(tmp_path, VALID))
+    assert settings.fit.staff_signals is False
+
+
+def test_staff_signals_can_be_turned_on(tmp_path):
+    text = VALID.replace("min_staff = 2", "min_staff = 2\nstaff_signals = true")
+    assert load_settings(write(tmp_path, text)).fit.staff_signals is True
+
+
+def test_staff_signals_must_be_true_or_false(tmp_path):
+    text = VALID.replace("min_staff = 2", 'min_staff = 2\nstaff_signals = "yes"')
+    with pytest.raises(SettingsError, match="staff_signals"):
+        load_settings(write(tmp_path, text))

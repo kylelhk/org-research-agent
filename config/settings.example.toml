@@ -18,6 +18,9 @@ centre_lon = 2.5
 # Placeholder categories; the client's real criteria go in the private file.
 types = ["example type A", "example type B"]
 min_staff = 2
+# Optional: true lets a website's signs of several staff (practitioners in the plural,
+# more than one profession, or more than one location) stand in for a stated number.
+staff_signals = false
 
 [prompts]
 # Extra guidance added to the research prompt, loaded from the private file.

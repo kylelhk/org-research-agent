@@ -37,6 +37,10 @@ class AreaSettings:
 class FitSettings:
     types: tuple[str, ...]
     min_staff: int
+    # When true, a listed type with no stated staff number still fits if its website
+    # shows a sign of several staff (practitioners in the plural, more than one
+    # profession, or more than one location).
+    staff_signals: bool = False
 
 
 @dataclass(frozen=True)
@@ -49,6 +53,13 @@ class Settings:
     area: AreaSettings
     fit: FitSettings
     prompts: PromptSettings
+
+
+def _optional_bool(section: dict, section_name: str, key: str) -> bool:
+    value = section.get(key, False)
+    if not isinstance(value, bool):
+        raise SettingsError(f"'{key}' in [{section_name}] must be true or false.")
+    return value
 
 
 def _section(data: dict, name: str) -> dict:
@@ -138,6 +149,7 @@ def load_settings(path: Path | str = DEFAULT_SETTINGS_PATH) -> Settings:
         fit=FitSettings(
             types=_string_list(fit, "fit", "types"),
             min_staff=int(_positive_number(fit, "fit", "min_staff")),
+            staff_signals=_optional_bool(fit, "fit", "staff_signals"),
         ),
         prompts=PromptSettings(research=research),
     )

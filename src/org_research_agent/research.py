@@ -53,6 +53,13 @@ STAFF_BASES = (STATED, UNKNOWN)
 FIT = "fit"
 NOT_FIT = "not a fit"
 STATUS_REVIEW = "to review"
+
+# Signs on a website that more than one person works there, with their spreadsheet labels.
+SIGNALS = {
+    "several_practitioners": "practitioners in the plural",
+    "several_professions": "more than one profession",
+    "several_locations": "more than one location",
+}
 STATUS_CHECK = "needs manual check"
 
 FIELDS = (
@@ -63,6 +70,9 @@ FIELDS = (
     "general_contact",
     "staff_count",
     "staff_count_basis",
+    "several_practitioners",
+    "several_professions",
+    "several_locations",
     "evidence_quote",
     "no_marketing_notice",
     "no_marketing_quote",
@@ -104,9 +114,16 @@ and "unknown" if you can't tell.
 - staff_count: the number of staff a page states, such as "our team of eight" or "12 \
 staff". Use null if no page states a number. Do not count names and do not guess.
 - staff_count_basis: "{stated}" if a page states staff_count, otherwise "unknown".
+- several_practitioners: true only if a page refers to the organisation's practitioners \
+in the plural, such as "our dentists" or "our physiotherapists". Judge this from the \
+wording only, never by counting names, photos, or [name] placeholders.
+- several_professions: true only if the organisation offers services from more than one \
+health profession, such as physiotherapy and podiatry.
+- several_locations: true only if the organisation has more than one clinic or location.
 - evidence_quote: one sentence copied exactly, word for word, from a page you read, that \
 best shows the organisation's type or staff size. If staff_count is not null, use the \
-sentence that states it. Use "" if there is none.
+sentence that states it. If staff_count is null and one of the three signals above is \
+true, use the sentence that best shows it. Use "" if there is none.
 - suburb: the suburb in the organisation's address on its website, or "unknown".
 - general_contact: a general phone number or general email address (such as info@ or \
 reception@) published on the website, or "unknown". Never a personal email address or a \
@@ -152,6 +169,7 @@ class ResearchResult:
     checked_on: str
     status: str
     notes: list[str] = field(default_factory=list)
+    staff_signals: str = ""
     cost_usd: float = 0.0
     agent_seconds: float = 0.0
     fetch_counts: dict[str, int] = field(default_factory=dict)
@@ -176,6 +194,9 @@ def build_schema(fit_types: tuple[str, ...], max_pages: int) -> dict:
             "general_contact": {**text, "maxLength": 120},
             "staff_count": {"type": ["integer", "null"], "minimum": 0},
             "staff_count_basis": {"type": "string", "enum": list(STAFF_BASES)},
+            "several_practitioners": {"type": "boolean"},
+            "several_professions": {"type": "boolean"},
+            "several_locations": {"type": "boolean"},
             "evidence_quote": quote,
             "no_marketing_notice": {"type": "boolean"},
             "no_marketing_quote": quote,
@@ -247,7 +268,7 @@ def _shape_problems(facts: object, fit_types: tuple[str, ...]) -> list[str]:
     for name in ("suburb", "general_contact", "evidence_quote", "no_marketing_quote"):
         if not isinstance(facts[name], str) or len(facts[name]) > MAX_QUOTE_CHARS:
             problems.append(f"invalid {name}")
-    for name in ("no_marketing_notice", "suspicious_instructions_seen"):
+    for name in ("no_marketing_notice", "suspicious_instructions_seen", *SIGNALS):
         if not isinstance(facts[name], bool):
             problems.append(f"invalid {name}")
     count = facts["staff_count"]
@@ -290,8 +311,14 @@ def _match_suburb(value: str, settings: Settings) -> str | None:
     return None
 
 
-def _decide_fit(org_type: str, count: int | None, settings: Settings) -> tuple[str, str]:
-    """Apply the fit rule in code: a listed type with at least the minimum staff."""
+def _decide_fit(
+    org_type: str, count: int | None, settings: Settings, signals: list[str] = ()
+) -> tuple[str, str]:
+    """Apply the fit rule in code: a listed type with at least the minimum staff.
+
+    A stated staff number always decides. Without one, and when the settings allow it,
+    a sign of several staff on the website counts as meeting the minimum.
+    """
     if org_type == UNKNOWN:
         return UNKNOWN, "Type of organisation unknown."
     if org_type not in settings.fit.types:
@@ -299,6 +326,8 @@ def _decide_fit(org_type: str, count: int | None, settings: Settings) -> tuple[s
     # Upper-case only the first letter, so "GP clinic" stays as written.
     label = org_type[:1].upper() + org_type[1:]
     if count is None:
+        if settings.fit.staff_signals and signals:
+            return FIT, f"{label}; signs of several staff: {', '.join(signals)}."
         return UNKNOWN, f"{label}, staff size unknown."
     if count < settings.fit.min_staff:
         return NOT_FIT, f"{label} with {count} staff, below {settings.fit.min_staff}."
@@ -373,7 +402,9 @@ def build_result(
     basis = facts["staff_count_basis"]
     if count is not None:
         result.staff_size = f"{count} ({basis})"
-    result.fit, result.fit_reason = _decide_fit(result.type, count, settings)
+    signals = [label for name, label in SIGNALS.items() if facts[name]]
+    result.staff_signals = ", ".join(signals) if signals else "none found"
+    result.fit, result.fit_reason = _decide_fit(result.type, count, settings, signals)
 
     if facts["evidence_quote"] and quotes_trusted:
         result.evidence = f'"{facts["evidence_quote"]}"'

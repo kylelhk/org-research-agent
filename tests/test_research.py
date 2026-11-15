@@ -46,6 +46,9 @@ GOOD = {
     "general_contact": "info@clinic.test",
     "staff_count": 7,
     "staff_count_basis": "stated on site",
+    "several_practitioners": False,
+    "several_professions": False,
+    "several_locations": False,
     "evidence_quote": "Testville Family Dental has five dentists and two hygienists.",
     "no_marketing_notice": False,
     "no_marketing_quote": "",
@@ -135,6 +138,81 @@ def test_fit_rule_is_applied_by_code(tmp_path, changes, fit, reason):
     result = run(FakeAgent(answer(**changes)), tmp_path=tmp_path)
     assert result.fit == fit
     assert reason in result.fit_reason
+
+
+SIGNAL_SETTINGS = Settings(
+    area=SETTINGS.area,
+    fit=FitSettings(types=SETTINGS.fit.types, min_staff=2, staff_signals=True),
+    prompts=SETTINGS.prompts,
+)
+NO_COUNT = {"staff_count": None, "staff_count_basis": "unknown"}
+
+
+def run_with_signals(agent, tmp_path):
+    return research_organisation(ORG, SIGNAL_SETTINGS, tmp_path, runner=agent, today="2026-11-08")
+
+
+@pytest.mark.parametrize(
+    ("signal", "label"),
+    [
+        ("several_practitioners", "practitioners in the plural"),
+        ("several_professions", "more than one profession"),
+        ("several_locations", "more than one location"),
+    ],
+)
+def test_a_staff_signal_makes_a_fit_when_no_number_is_stated(tmp_path, signal, label):
+    result = run_with_signals(FakeAgent(answer(**NO_COUNT, **{signal: True})), tmp_path)
+    assert result.fit == FIT
+    assert result.fit_reason == f"Dental practice; signs of several staff: {label}."
+    assert result.staff_signals == label
+
+
+def test_all_signals_are_listed_together(tmp_path):
+    facts = answer(
+        **NO_COUNT, several_practitioners=True, several_professions=True, several_locations=True
+    )
+    result = run_with_signals(FakeAgent(facts), tmp_path)
+    assert result.staff_signals == (
+        "practitioners in the plural, more than one profession, more than one location"
+    )
+
+
+def test_a_stated_number_below_the_minimum_beats_a_signal(tmp_path):
+    facts = answer(staff_count=1, several_practitioners=True)
+    result = run_with_signals(FakeAgent(facts), tmp_path)
+    assert result.fit == NOT_FIT
+    assert result.fit_reason == "Dental practice with 1 staff, below 2."
+
+
+def test_no_signal_and_no_number_stays_unknown(tmp_path):
+    result = run_with_signals(FakeAgent(answer(**NO_COUNT)), tmp_path)
+    assert result.fit == "unknown"
+    assert result.staff_signals == "none found"
+
+
+def test_signals_are_ignored_when_the_setting_is_off(tmp_path):
+    facts = answer(**NO_COUNT, several_locations=True)
+    result = run(FakeAgent(facts), tmp_path=tmp_path)
+    assert result.fit == "unknown"
+    assert result.staff_signals == "more than one location"
+
+
+def test_a_signal_does_not_rescue_a_type_off_the_list(tmp_path):
+    facts = answer(**NO_COUNT, organisation_type="other", several_practitioners=True)
+    result = run_with_signals(FakeAgent(facts), tmp_path)
+    assert result.fit == NOT_FIT
+
+
+def test_a_signal_that_is_not_true_or_false_is_rejected(tmp_path):
+    agent = FakeAgent(answer(several_locations="yes"), GOOD)
+    run(agent, tmp_path=tmp_path)
+    assert "invalid several_locations" in agent.prompts[1]
+
+
+def test_prompt_asks_for_signals_from_wording_not_names():
+    prompt = build_prompt(ORG, SETTINGS, 6)
+    assert "several_practitioners" in prompt
+    assert "never by counting names, photos, or [name] placeholders" in prompt
 
 
 def test_counting_a_team_page_is_rejected(tmp_path):
