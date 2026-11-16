@@ -36,7 +36,7 @@ else
   echo "No Brave key saved, so missing websites won't be searched for."
 fi
 
-echo "Researching. This takes a few minutes per practice; leave this window open."
+echo "Researching. Leave this window open until the Excel list opens."
 echo
 "$RUN" "${EXTRA[@]}"
 STATUS=$?
