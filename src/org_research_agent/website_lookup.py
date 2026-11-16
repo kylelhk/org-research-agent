@@ -76,6 +76,9 @@ class LookupResult:
     organisation: Organisation
     outcome: str  # FOUND, CHECKED, or NOT_FOUND
     searches: int = 0
+    # Not found, but a site carrying the name was seen that doesn't mention the local
+    # area, such as a chain's main site or another branch. Only this flag is kept.
+    wider_site_only: bool = False
 
 
 def _words(text: str) -> list[str]:
@@ -159,15 +162,26 @@ def _page_text(url: str, allowed_terms: tuple[str, ...] = ()) -> str:
     return "" if text.startswith(("BLOCKED", "ERROR")) else text
 
 
-def _confirms(url: str, org: Organisation, places: tuple[str, ...], read: Callable) -> bool:
+LOCAL, WIDER, NO_MATCH = "local", "wider", "no match"
+
+
+def _assess(url: str, org: Organisation, places: tuple[str, ...], read: Callable) -> str:
+    """LOCAL if the page is this organisation's own site and mentions the area.
+
+    WIDER if it's a site carrying the name that doesn't mention the area, as a chain's
+    main site or another branch's site would. NO_MATCH otherwise.
+    """
     text = read(url)
     title = next((line[12:] for line in text.splitlines() if line.startswith("Page title: ")), "")
-    return (
-        bool(text)
-        and names_organisation(text, org.name)
-        and mentions_area(text, places)
-        and is_own_site(title, url, org.name, places)
-    )
+    if not (text and names_organisation(text, org.name)):
+        return NO_MATCH
+    if not is_own_site(title, url, org.name, places):
+        return NO_MATCH
+    return LOCAL if mentions_area(text, places) else WIDER
+
+
+def _confirms(url: str, org: Organisation, places: tuple[str, ...], read: Callable) -> bool:
+    return _assess(url, org, places, read) == LOCAL
 
 
 def find_website(
@@ -184,6 +198,7 @@ def find_website(
     where = org.suburb if org.suburb != UNKNOWN else "Perth"
     urls = search(f'"{org.name}" {where} WA', api_key)
     seen: set[str] = set()
+    wider = False
     for url in urls:
         if is_directory(url) or urlsplit(url).scheme not in {"http", "https"}:
             continue
@@ -193,9 +208,11 @@ def find_website(
         seen.add(home)
         if len(seen) > CANDIDATES_TO_OPEN:
             break
-        if _confirms(home, org, places, read):
+        verdict = _assess(home, org, places, read)
+        if verdict == LOCAL:
             return LookupResult(replace(org, website=home), FOUND, 1)
-    return LookupResult(org, NOT_FOUND, 1)
+        wider = wider or verdict == WIDER
+    return LookupResult(org, NOT_FOUND, 1, wider_site_only=wider)
 
 
 def _search_with_retry(

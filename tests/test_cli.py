@@ -246,3 +246,38 @@ def test_find_websites_stops_without_a_key(tmp_path, capsys, monkeypatch):
     args = setup(tmp_path) + ["--find-websites", "--dry-run"]
     assert main(args, find=fake_find) == 2
     assert "No search API key" in capsys.readouterr().err
+
+
+def test_rows_without_a_local_website_say_what_the_search_found(tmp_path, capsys):
+    from org_research_agent.website_lookup import CHECKED, NOT_FOUND, LookupResult
+
+    def fake_lookup(organisations, places):
+        results = []
+        for o in organisations:
+            if o.name == "Alpha Dental":
+                results.append(LookupResult(Organisation(o.name, o.type), NOT_FOUND, 1, True))
+            elif o.name == "Beta Clinic":
+                results.append(LookupResult(Organisation(o.name, o.type), NOT_FOUND, 1))
+            else:
+                results.append(LookupResult(o, CHECKED))
+        return results
+
+    args = setup(tmp_path) + ["--find-websites"]
+    assert main(args, runner=fake_runner, find=fake_find, lookup=fake_lookup,
+                stamp="2026-11-08-0900") == 0  # fmt: skip
+    output = capsys.readouterr().out
+    assert "2 not found, 1 of them with only a site for the wider business" in output
+    sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
+    headings = [cell.value for cell in sheet[1]]
+    rows = {
+        sheet.cell(row=r, column=1).value: dict(
+            zip(headings, [c.value for c in sheet[r]], strict=True)
+        )
+        for r in range(2, sheet.max_row + 1)
+    }
+    alpha, beta = rows["Alpha Dental"], rows["Beta Clinic"]
+    for row in (alpha, beta):
+        assert row["Reason"] == "No website listed, and the search found none for this location."
+    assert "chain's main site or another branch" in alpha["Notes"]
+    assert not beta["Notes"]
+    assert "chain" not in (rows["Hand Added Dental"]["Notes"] or "")

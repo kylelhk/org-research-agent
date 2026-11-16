@@ -210,3 +210,30 @@ def test_nothing_from_a_search_is_saved_and_each_run_searches_again(tmp_path):
         assert results[0].outcome == FOUND
     assert len(searched) == 2
     assert not any(tmp_path.rglob("*"))
+
+
+def test_a_site_for_the_wider_business_is_flagged_but_not_used():
+    # Named, and its own site, but it doesn't mention the area: a chain's main site or
+    # another branch. The website stays empty and only the flag is kept.
+    org = Organisation("Alpha Dental")
+    result = find_website(org, PLACES, "key", search=lambda q, k: ["https://other-alpha.test/"],
+                          read=read)  # fmt: skip
+    assert result.outcome == NOT_FOUND
+    assert result.wider_site_only
+    assert result.organisation.website == ""
+
+
+def test_directories_and_unrelated_pages_are_not_flagged_as_the_wider_business():
+    org = Organisation("Alpha Dental", suburb="Testvale")
+    urls = ["https://listings.test/", "https://unrelated.test/"]
+    result = find_website(org, PLACES, "key", search=lambda q, k: urls, read=read)
+    assert result.outcome == NOT_FOUND
+    assert not result.wider_site_only
+
+
+def test_a_local_site_wins_over_a_wider_one():
+    org = Organisation("Alpha Dental")
+    urls = ["https://other-alpha.test/", "https://alphadental.test/"]
+    result = find_website(org, PLACES, "key", search=lambda q, k: urls, read=read)
+    assert result.outcome == FOUND
+    assert not result.wider_site_only

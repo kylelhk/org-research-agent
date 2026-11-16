@@ -48,6 +48,12 @@ from org_research_agent.website_lookup import (
 )
 
 MAP_ATTEMPTS = 3
+NO_LOCAL_SITE_REASON = "No website listed, and the search found none for this location."
+WIDER_SITE_NOTE = (
+    "The search found a site with this name that doesn't mention your area, such as a "
+    "chain's main site or another branch. This location may have no page of its own: "
+    "check by hand."
+)
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
@@ -128,6 +134,8 @@ def main(
         f"({len(map_orgs)} from the map, {len(manual)} added by hand)."
     )
     found_by_search: set[str] = set()
+    not_found: set[str] = set()
+    wider_only: set[str] = set()
     if args.find_websites:
         places = (*area.suburbs, *area.nearby_suburbs, *area.allowed_terms, "Perth")
         try:
@@ -137,16 +145,25 @@ def main(
             return 2
         organisations = [result.organisation for result in lookups]
         found_by_search = {r.organisation.name for r in lookups if r.outcome == FOUND}
+        not_found = {r.organisation.name for r in lookups if r.outcome == NOT_FOUND}
+        wider_only = {r.organisation.name for r in lookups if r.wider_site_only}
         outcomes = Counter(result.outcome for result in lookups)
+        wider_note = (
+            f", {len(wider_only)} of them with only a site for the wider business or another area"
+            if wider_only
+            else ""
+        )
         print(
             f"Website lookup: {outcomes[FOUND]} found by search, "
             f"{len(lookups) - outcomes[FOUND] - outcomes[NOT_FOUND]} "
-            f"listed websites confirmed, {outcomes[NOT_FOUND]} not found "
+            f"listed websites confirmed, {outcomes[NOT_FOUND]} not found{wider_note} "
             f"({sum(r.searches for r in lookups)} searches)."
         )
     if args.dry_run:
         for org in organisations:
             note = ", found by search" if org.name in found_by_search else ""
+            if org.name in wider_only:
+                note = ", only a site for the wider business or another area"
             print(f"- {org.name} ({org.type}, {org.website or 'no website'}{note})")
         return 0
 
@@ -161,6 +178,10 @@ def main(
             result = research_organisation(
                 org, settings, runs_dir, runner=runner, max_pages=args.max_pages
             )
+            if not org.website and org.name in not_found:
+                result.fit_reason = NO_LOCAL_SITE_REASON
+            if org.name in wider_only:
+                result.notes.append(WIDER_SITE_NOTE)
             results.append(result)
             print(f"{result.fit} ({result.status}, {result.agent_seconds:.0f}s)")
     except KeyboardInterrupt:
