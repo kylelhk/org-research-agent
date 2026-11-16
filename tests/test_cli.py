@@ -6,7 +6,7 @@ from openpyxl import load_workbook
 
 from org_research_agent.claude_runner import ClaudeResult, ClaudeSignInError
 from org_research_agent.cli import main
-from org_research_agent.excel import COLUMNS, STATUS_CHOICES
+from org_research_agent.excel import COLUMNS, HEADER_ROW, STATUS_CHOICES
 from org_research_agent.organisation import Organisation
 
 SETTINGS = """
@@ -96,11 +96,15 @@ def test_full_run_writes_spreadsheet(tmp_path, capsys):
     assert run(tmp_path) == 0
     path = tmp_path / "output" / "research-2026-11-08-0900.xlsx"
     sheet = load_workbook(path).active
-    assert [cell.value for cell in sheet[1]] == [heading for heading, _, _ in COLUMNS]
-    names = [sheet.cell(row=row, column=1).value for row in range(2, sheet.max_row + 1)]
+    assert sheet["A1"].value == "Healthcare organisations: research list"
+    assert [cell.value for cell in sheet[HEADER_ROW]] == [heading for heading, _, _ in COLUMNS]
+    names = [
+        sheet.cell(row=row, column=1).value for row in range(HEADER_ROW + 1, sheet.max_row + 1)
+    ]
     assert names == ["Alpha Dental", "Beta Clinic", "Hand Added Dental"]
     row = {
-        sheet.cell(row=1, column=c).value: sheet.cell(row=2, column=c).value for c in range(1, 15)
+        sheet.cell(row=HEADER_ROW, column=c).value: sheet.cell(row=HEADER_ROW + 1, column=c).value
+        for c in range(1, 15)
     }
     assert row["Fit"] == "fit"
     assert not row["Evidence quote"]
@@ -159,7 +163,7 @@ def test_ctrl_c_saves_finished_organisations(tmp_path, capsys):
 
     assert run(tmp_path, runner=stops_on_second) == 130
     sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
-    assert sheet.max_row == 2
+    assert sheet.max_row == HEADER_ROW + 1
     assert "Stopped" in capsys.readouterr().out
 
 
@@ -187,7 +191,7 @@ def test_sign_in_failure_midway_saves_finished_organisations(tmp_path, capsys):
 
     assert run(tmp_path, runner=signs_out_on_second) == 130
     sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
-    assert sheet.max_row == 2
+    assert sheet.max_row == HEADER_ROW + 1
 
 
 def test_spreadsheet_holds_no_page_text_or_logs(tmp_path):
@@ -268,12 +272,12 @@ def test_rows_without_a_local_website_say_what_the_search_found(tmp_path, capsys
     output = capsys.readouterr().out
     assert "2 not found, 1 of them with only a site for the wider business" in output
     sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
-    headings = [cell.value for cell in sheet[1]]
+    headings = [cell.value for cell in sheet[HEADER_ROW]]
     rows = {
         sheet.cell(row=r, column=1).value: dict(
             zip(headings, [c.value for c in sheet[r]], strict=True)
         )
-        for r in range(2, sheet.max_row + 1)
+        for r in range(HEADER_ROW + 1, sheet.max_row + 1)
     }
     alpha, beta = rows["Alpha Dental"], rows["Beta Clinic"]
     for row in (alpha, beta):
@@ -281,3 +285,34 @@ def test_rows_without_a_local_website_say_what_the_search_found(tmp_path, capsys
     assert "chain's main site or another branch" in alpha["Notes"]
     assert not beta["Notes"]
     assert "chain" not in (rows["Hand Added Dental"]["Notes"] or "")
+
+
+def test_spreadsheet_is_styled_for_reading(tmp_path):
+    run(tmp_path)
+    workbook = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx")
+    for sheet in workbook:
+        assert sheet["A1"].value  # every tab has a title
+        fonts = {c.font.name for row in sheet.iter_rows() for c in row if c.value is not None}
+        assert fonts == {"Arial"}
+    sheet = workbook["Research"]
+    headings = {c.value: c for c in sheet[HEADER_ROW]}
+    assert "couldn't read" in headings["Fit"].comment.text
+    assert headings["Website"].comment is not None
+    first = HEADER_ROW + 1
+    assert sheet.cell(row=first, column=4).hyperlink.target == "https://alpha.test/"
+    assert sheet.freeze_panes == f"B{first}"
+
+
+def test_summary_counts_setup_time_and_leaves_out_rows_without_a_website(tmp_path, capsys):
+    times = iter([100.0, 160.0])
+    no_site = """
+[[organisation]]
+name = "No Site Dental"
+"""
+    args = setup(tmp_path)
+    (tmp_path / "manual.toml").write_text(MANUAL + no_site)
+    assert main(args, runner=fake_runner, find=fake_find, stamp="2026-11-08-0900",
+                clock=lambda: next(times)) == 0  # fmt: skip
+    output = capsys.readouterr().out
+    assert "60s map search and website lookup" in output
+    assert "(3 of 4 had a website)" in output

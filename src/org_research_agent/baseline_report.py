@@ -19,7 +19,7 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
-from org_research_agent.excel import RUN_INFO_SHEET, TIMING_HEADINGS
+from org_research_agent.excel import REVIEW_TIME, RUN_INFO_SHEET, TIMING_HEADINGS
 
 DEFAULT_TARGET_FASTER_PCT = 60.0
 DEFAULT_TARGET_AGREEMENT_PCT = 80.0
@@ -61,8 +61,29 @@ def _number(value) -> float | None:
         raise ValueError(f"'{value}' is not a number of minutes.") from error
 
 
+def _research_review_times(workbook) -> dict[str, object]:
+    """The reviewer check time on the Research tab, by organisation name.
+
+    The Run info tab shows it through a formula, which has no value until Excel has
+    calculated and saved the file, so it's read from the Research tab when needed.
+    """
+    if "Research" not in workbook.sheetnames:
+        return {}
+    sheet = workbook["Research"]
+    for row in sheet.iter_rows():
+        headings = [cell.value for cell in row]
+        if headings and headings[0] == "Name" and REVIEW_TIME in headings:
+            column = headings.index(REVIEW_TIME)
+            return {
+                values[0]: values[column]
+                for values in sheet.iter_rows(min_row=row[0].row + 1, values_only=True)
+                if values[0] and len(values) > column
+            }
+    return {}
+
+
 def read_rows(path: Path) -> list[Row]:
-    workbook = load_workbook(path)
+    workbook = load_workbook(path, data_only=True)
     if RUN_INFO_SHEET not in workbook.sheetnames:
         raise ValueError(f"No '{RUN_INFO_SHEET}' sheet in this file.")
     sheet = workbook[RUN_INFO_SHEET]
@@ -71,6 +92,7 @@ def read_rows(path: Path) -> list[Row]:
     )
     if header_row is None:
         raise ValueError("The Run info sheet has no organisation table.")
+    from_research = _research_review_times(workbook)
     rows = []
     for values in sheet.iter_rows(min_row=header_row + 1, values_only=True):
         if not values[0]:
@@ -81,7 +103,9 @@ def read_rows(path: Path) -> list[Row]:
             Row(
                 name=str(padded[0]),
                 agent_seconds=float(padded[1] or 0),
-                check_min=_number(padded[3]),
+                check_min=_number(
+                    padded[3] if padded[3] not in (None, "") else from_research.get(padded[0])
+                ),
                 changed=changed,
                 rework_min=_number(padded[5]),
             )

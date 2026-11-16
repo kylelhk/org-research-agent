@@ -87,6 +87,7 @@ def main(
     stamp: str | None = None,
     lookup: Callable[..., list] = find_websites,
     pause: Callable[[float], None] = time.sleep,
+    clock: Callable[[], float] = time.monotonic,
 ) -> int:
     args = _parse_args(argv)
 
@@ -97,6 +98,8 @@ def main(
         print(f"Error: {error}", file=sys.stderr)
         return 2
 
+    # The map search and website lookup are timed together, as the run's setup time.
+    setup_started = clock()
     map_orgs: list[Organisation] = []
     area = settings.area
     if args.no_map:
@@ -167,6 +170,7 @@ def main(
             print(f"- {org.name} ({org.type}, {org.website or 'no website'}{note})")
         return 0
 
+    setup_seconds = clock() - setup_started
     stamp = stamp or datetime.now().strftime("%Y-%m-%d-%H%M")
     runs_dir = Path(args.runs_dir) / stamp
     output_path = Path(args.output_dir) / f"research-{stamp}.xlsx"
@@ -195,17 +199,24 @@ def main(
         interrupted = True
         print("Saving the organisations finished so far.")
 
-    write_results(results, output_path, run_label=stamp)
+    write_results(results, output_path, run_label=stamp, setup_seconds=setup_seconds)
     fits = Counter(result.fit for result in results)
     checks = sum(result.status == STATUS_CHECK for result in results)
     cost = sum(result.cost_usd for result in results)
     print()
     print("Results: " + ", ".join(f"{count} {fit}" for fit, count in sorted(fits.items())))
     print(f"Needs manual check: {checks}")
-    seconds = sum(result.agent_seconds for result in results)
-    if results:
+    research_seconds = sum(result.agent_seconds for result in results)
+    total_seconds = setup_seconds + research_seconds
+    with_website = sum(1 for result in results if result.website)
+    print(
+        f"Agent time: {total_seconds:.0f}s in total ({setup_seconds:.0f}s map search and "
+        f"website lookup, {research_seconds:.0f}s researching websites)"
+    )
+    if with_website:
         print(
-            f"Agent time: {seconds:.0f}s in total, {seconds / len(results):.0f}s per organisation"
+            f"Per organisation with a website: {total_seconds / with_website:.0f}s "
+            f"({with_website} of {len(results)} had a website)"
         )
     print(f"Usage at list price: ${cost:.2f} (counts against the Claude plan, not billed)")
     print(f"Saved: {output_path}")
