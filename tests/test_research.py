@@ -466,3 +466,9 @@ def test_prompt_uses_the_runs_suburbs_in_the_guidance():
     prompt = build_prompt(ORG, settings, 6)
     assert "Prefer practices near Southby." in prompt
     assert "{suburbs}" not in prompt
+
+
+def test_a_very_large_staff_number_needs_a_manual_check(tmp_path):
+    result = run(FakeAgent(answer(staff_count=400)), tmp_path=tmp_path)
+    assert result.status == STATUS_CHECK
+    assert any("may be for the whole organisation" in note for note in result.notes)

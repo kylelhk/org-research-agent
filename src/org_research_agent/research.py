@@ -67,6 +67,9 @@ SIGNALS = {
     "several_locations": "more than one location",
 }
 STATUS_CHECK = "needs manual check"
+# A stated staff number above this is more likely a group's or chain's total than one
+# practice's, as with a national network's site, so a person checks it.
+LARGE_STAFF = 100
 
 FIELDS = (
     "read_status",
@@ -428,6 +431,8 @@ def build_result(
     basis = facts["staff_count_basis"]
     if count is not None:
         result.staff_size = f"{count} ({basis})"
+        if count > LARGE_STAFF:
+            checks.append("staff number is large, so it may be for the whole organisation")
     signals = [label for name, label in SIGNALS.items() if facts[name]]
     result.staff_signals = ", ".join(signals) if signals else "none found"
     result.fit, result.fit_reason = _decide_fit(result.type, count, settings, signals)
