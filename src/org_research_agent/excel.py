@@ -8,6 +8,7 @@ from openpyxl import Workbook
 from openpyxl.comments import Comment
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.workbook.views import BookView
 from openpyxl.worksheet.datavalidation import DataValidation
 
 from org_research_agent.fetch_summary import PAGES_READ, describe_refusals
@@ -176,6 +177,10 @@ def write_results(
     """Save results as a formatted spreadsheet and return its path."""
     path = Path(path)
     workbook = Workbook()
+    # Open in a normal window rather than filling the screen. Sizes are in twips
+    # (1/20 point): about 1100 by 700 points, near the top left, which fits a 13-inch
+    # MacBook. Without a size, Excel opens the list maximised.
+    workbook.views = [BookView(xWindow=1200, yWindow=1200, windowWidth=22000, windowHeight=14000)]
     workbook._named_styles["Normal"].font = Font(name=FONT, size=10)
     sheet = workbook.active
     sheet.title = "Research"

@@ -549,3 +549,39 @@ def test_a_map_entry_named_after_a_person_is_left_out(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "1 map entry named after a person left out" in output
     assert "Sample" not in output
+
+
+def test_a_row_researched_on_a_chains_main_site_needs_a_manual_check(tmp_path, capsys):
+    from org_research_agent.website_lookup import CHECKED, LookupResult
+
+    def fake_lookup(organisations, places, progress=None):
+        return [
+            LookupResult(
+                Organisation(o.name, o.type, o.suburb, "https://chain.test/", o.source),
+                CHECKED, 1, True,
+            )
+            if o.name == "Alpha Dental"
+            else LookupResult(o, CHECKED)
+            for o in organisations
+        ]  # fmt: skip
+
+    args = setup(tmp_path) + ["--find-websites"]
+    assert main(args, runner=fake_runner, find=fake_find, lookup=fake_lookup,
+                stamp="2026-11-08-0900") == 0  # fmt: skip
+    sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").active
+    headings = [cell.value for cell in sheet[HEADER_ROW]]
+    rows = {
+        sheet.cell(row=r, column=1).value: dict(
+            zip(headings, [c.value for c in sheet[r]], strict=True)
+        )
+        for r in range(HEADER_ROW + 1, sheet.max_row + 1)
+    }
+    assert rows["Alpha Dental"]["Status"] == "needs manual check"
+    assert "chain's main site" in rows["Alpha Dental"]["Notes"]
+
+
+def test_the_list_opens_in_a_normal_sized_window(tmp_path):
+    args = setup(tmp_path) + ["--no-map", "--allow-fewer"]
+    assert main(args, runner=fake_runner, stamp="2026-11-08-0900") == 0
+    view = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx").views[0]
+    assert (view.windowWidth, view.windowHeight) == (22000, 14000)

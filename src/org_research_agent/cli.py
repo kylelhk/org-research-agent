@@ -45,6 +45,7 @@ from org_research_agent.research import (
     DEFAULT_MAX_PAGES,
     STATUS_CHECK,
     SUBURBS_PLACEHOLDER,
+    join_suburbs,
     research_organisation,
 )
 from org_research_agent.settings import DEFAULT_SETTINGS_PATH, SettingsError, load_settings
@@ -163,7 +164,7 @@ def main(
             )
     if manual and not selection.includes_usual:
         print(
-            f"Your hand-added list is for {', '.join(usual_area.suburbs)}, "
+            f"Your hand-added list is for {join_suburbs(usual_area.suburbs, 'and')}, "
             "so it's left out of this run."
         )
         manual = []
@@ -310,6 +311,9 @@ def main(
                 result.fit_reason = NO_LOCAL_SITE_REASON
             if org.name in wider_only:
                 result.notes.append(WIDER_SITE_NOTE)
+                # Facts from a chain's main site, such as its national staff number,
+                # aren't this location's, so a person checks the row.
+                result.status = STATUS_CHECK
             results.append(result)
             print(f"{result.fit} ({result.status}, {result.agent_seconds:.0f}s)")
     except KeyboardInterrupt:

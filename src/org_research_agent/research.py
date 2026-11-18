@@ -219,12 +219,12 @@ def build_schema(fit_types: tuple[str, ...], max_pages: int) -> dict:
 SUBURBS_PLACEHOLDER = "{suburbs}"
 
 
-def join_suburbs(suburbs: Sequence[str]) -> str:
+def join_suburbs(suburbs: Sequence[str], word: str = "or") -> str:
     """Victoria Park, or Victoria Park or East Victoria Park, or A, B or C."""
     names = [name for name in suburbs if name]
     if len(names) <= 1:
         return "".join(names) or "the research area"
-    return ", ".join(names[:-1]) + " or " + names[-1]
+    return ", ".join(names[:-1]) + f" {word} " + names[-1]
 
 
 def fill_guidance(guidance: str, suburbs: Sequence[str]) -> str:
