@@ -8,6 +8,7 @@ from org_research_agent.claude_runner import ClaudeResult, ClaudeSignInError
 from org_research_agent.cli import main
 from org_research_agent.excel import COLUMNS, HEADER_ROW, STATUS_CHOICES
 from org_research_agent.organisation import Organisation
+from org_research_agent.suburbs import Place
 
 SETTINGS = """
 [area]
@@ -88,7 +89,9 @@ def test_dry_run_lists_without_researching(tmp_path, capsys):
 
     assert run(tmp_path, "--dry-run", runner=no_agent) == 0
     output = capsys.readouterr().out
-    assert "3 organisations to research (2 from the map, 1 added by hand)." in output
+    assert (
+        "3 organisations to research: 2 from the map, plus 1 from your hand-added list." in output
+    )
     assert "- Hand Added Dental (unknown, https://hand.test/)" in output
 
 
@@ -136,7 +139,7 @@ def test_below_minimum_stops_unless_allowed(tmp_path, capsys):
 
 def test_no_map_uses_only_hand_added_list(tmp_path, capsys):
     assert run(tmp_path, "--no-map", "--allow-fewer", "--dry-run") == 0
-    assert "1 organisations to research (0 from the map, 1 added by hand)." in (
+    assert "1 organisations to research: 0 from the map, plus 1 from your hand-added list." in (
         capsys.readouterr().out
     )
 
@@ -215,19 +218,19 @@ def test_map_search_is_retried_before_giving_up(tmp_path, capsys):
     assert len(calls) == 3
 
 
-def test_map_search_stops_after_three_failures(tmp_path, capsys):
+def test_map_search_stops_after_five_failures(tmp_path, capsys):
     def broken_find(lat, lon, radius_m):
         raise OSError("down")
 
     args = setup(tmp_path) + ["--dry-run"]
     assert main(args, find=broken_find, pause=lambda s: None) == 1
-    assert "failed 3 times" in capsys.readouterr().err
+    assert "failed 5 times (no answer)" in capsys.readouterr().err
 
 
 def test_find_websites_fills_in_a_website_before_the_run(tmp_path, capsys):
     from org_research_agent.website_lookup import CHECKED, FOUND, LookupResult
 
-    def fake_lookup(organisations, places):
+    def fake_lookup(organisations, places, progress=None):
         assert "Testville" in places
         return [
             LookupResult(
@@ -255,7 +258,7 @@ def test_find_websites_stops_without_a_key(tmp_path, capsys, monkeypatch):
 def test_rows_without_a_local_website_say_what_the_search_found(tmp_path, capsys):
     from org_research_agent.website_lookup import CHECKED, NOT_FOUND, LookupResult
 
-    def fake_lookup(organisations, places):
+    def fake_lookup(organisations, places, progress=None):
         results = []
         for o in organisations:
             if o.name == "Alpha Dental":
@@ -316,3 +319,223 @@ name = "No Site Dental"
     output = capsys.readouterr().out
     assert "60s map search and website lookup" in output
     assert "(3 of 4 had a website)" in output
+
+
+class PlaybackWindow:
+    def __init__(self, answer):
+        self.answer = answer
+        self.closed = False
+
+    def ask(self):
+        return self.answer
+
+    def warn(self, message):
+        raise AssertionError(message)
+
+    def confirm(self, message):
+        raise AssertionError(message)
+
+    def busy(self, busy):
+        pass
+
+    def close(self):
+        self.closed = True
+
+
+def run_with_window(tmp_path, answer, *extra, find=fake_find):
+    window = PlaybackWindow(answer)
+    args = setup(tmp_path) + ["--choose-suburbs", *extra]
+    code = main(
+        args,
+        runner=fake_runner,
+        find=find,
+        stamp="2026-11-08-0900",
+        window=lambda usual: window,
+        locate=lambda name: Place("Otherton", (-3.0, 4.0)) if name == "Otherton" else None,
+    )
+    return code, window
+
+
+def test_cancelling_the_suburb_window_researches_nothing(tmp_path, capsys):
+    code, window = run_with_window(tmp_path, None)
+    assert code == 3
+    assert window.closed
+    assert "Cancelled. Nothing was researched." in capsys.readouterr().out
+    assert not (tmp_path / "output").exists()
+
+
+def test_usual_suburbs_from_the_window_run_as_before(tmp_path, capsys):
+    code, _ = run_with_window(tmp_path, (["Testville"], ""), "--dry-run")
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "Suburbs: Testville" in output
+    assert (
+        "3 organisations to research: 2 from the map, plus 1 from your hand-added list." in output
+    )
+
+
+def test_a_typed_suburb_gets_its_own_map_search(tmp_path, capsys):
+    centres = []
+
+    def find(lat, lon, radius_m):
+        centres.append((lat, lon))
+        if (lat, lon) == (-3.0, 4.0):
+            return [Organisation("Gamma Physio", "physiotherapy", website="https://g.test/")]
+        return fake_find(lat, lon, radius_m)
+
+    code, _ = run_with_window(tmp_path, (["Testville"], "Otherton"), find=find)
+    output = capsys.readouterr().out
+    assert code == 0
+    assert centres == [(-1.5, 2.5), (-3.0, 4.0)]
+    assert "Suburbs: Testville, Otherton" in output
+    sheet = load_workbook(tmp_path / "output" / "research-2026-11-08-0900.xlsx")["Research"]
+    assert "Suburbs: Testville, Otherton." in sheet["A2"].value
+    names = [sheet.cell(row, 1).value for row in range(HEADER_ROW + 1, sheet.max_row + 1)]
+    assert "Gamma Physio" in names
+
+
+def test_only_other_suburbs_leave_out_the_hand_added_list(tmp_path, capsys):
+    def find(lat, lon, radius_m):
+        return [Organisation("Gamma Physio", "physiotherapy", website="https://g.test/")]
+
+    code, _ = run_with_window(tmp_path, ([], "Otherton"), "--dry-run", find=find)
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "hand-added list is for Testville, so it's left out" in output
+    assert "fewer than the usual minimum of 3. The run continues." in output
+    assert "Hand Added Dental" not in output
+
+
+def test_suburbs_option_sets_the_run_without_a_window(tmp_path, capsys):
+    args = setup(tmp_path) + ["--suburbs", "Nowhereville", "--dry-run"]
+    code = main(args, runner=fake_runner, find=fake_find, locate=lambda name: None)
+    output = capsys.readouterr().out
+    assert code == 0
+    assert "Nowhereville wasn't found in Perth" in output
+    assert "None of these suburbs was found on the map" in output
+
+
+def test_guidance_naming_the_usual_suburbs_gets_a_note_on_other_runs(tmp_path, capsys):
+    settings = SETTINGS.replace("Synthetic guidance.", "Prefer practices near Testville.")
+    args = setup(tmp_path, settings) + ["--suburbs", "Nowhereville", "--dry-run"]
+    main(args, runner=fake_runner, find=fake_find, locate=lambda name: None)
+    assert "the research guidance in the settings names Testville" in capsys.readouterr().out
+
+
+def test_guidance_with_the_placeholder_gets_no_note(tmp_path, capsys):
+    settings = SETTINGS.replace("Synthetic guidance.", "Prefer practices near {suburbs}.")
+    args = setup(tmp_path, settings) + ["--suburbs", "Nowhereville", "--dry-run"]
+    main(args, runner=fake_runner, find=fake_find, locate=lambda name: None)
+    assert "research guidance" not in capsys.readouterr().out
+
+
+def test_usual_run_gets_no_guidance_note(tmp_path, capsys):
+    settings = SETTINGS.replace("Synthetic guidance.", "Prefer practices near Testville.")
+    main(setup(tmp_path, settings) + ["--dry-run"], runner=fake_runner, find=fake_find)
+    assert "research guidance" not in capsys.readouterr().out
+
+
+def test_the_map_search_shows_each_suburb_and_retries(tmp_path, capsys):
+    calls = []
+
+    def flaky_find(lat, lon, radius_m):
+        calls.append((lat, lon))
+        if len(calls) == 1:
+            raise OSError("busy")
+        return fake_find(-1.5, 2.5, radius_m)
+
+    args = setup(tmp_path) + ["--dry-run"]
+    main(args, runner=fake_runner, find=flaky_find, pause=lambda seconds: None)
+    output = capsys.readouterr().out
+    assert "Map search around Testville ... no answer, trying again in 15 seconds" in output
+    assert "2 found." in output
+
+
+def test_the_count_line_counts_an_organisation_in_both_lists_once():
+    from org_research_agent.cli import _count_line
+
+    on_map = [Organisation("Alpha Dental", "dentist"), Organisation("Beta Clinic", "clinic")]
+    manual = [Organisation("alpha dental", "dentist"), Organisation("Gamma Physio", "physio")]
+    assert _count_line(3, on_map, manual) == (
+        "3 organisations to research: 2 from the map, plus 1 from your hand-added "
+        "list (1 more on it was already found on the map)."
+    )
+    assert _count_line(2, on_map, manual[:1]) == (
+        "2 organisations to research: 2 from the map. The 1 on your hand-added list was among them."
+    )
+    assert _count_line(2, on_map, []) == "2 organisations to research: 2 from the map."
+
+
+def test_overlapping_map_searches_say_how_many_are_different(tmp_path, capsys):
+    places = {"bentley": Place("Bentley", (-3.0, 4.0))}
+    args = setup(tmp_path) + ["--suburbs", "Testville,Bentley", "--dry-run"]
+    main(
+        args,
+        runner=fake_runner,
+        find=lambda lat, lon, radius_m: fake_find(-1.5, 2.5, radius_m),
+        locate=lambda name: places.get(name.lower()),
+        pause=lambda seconds: None,
+    )
+    output = capsys.readouterr().out
+    assert "found 4 results. 2 names came up more than once, so there are 2 different" in output
+
+
+def big_find(lat, lon, radius_m):
+    return [Organisation(f"Clinic {n} {lat}", "clinic") for n in range(25)]
+
+
+def test_a_large_run_from_the_window_asks_first_and_can_stop(tmp_path, capsys):
+    places = {"bentley": Place("Bentley", (-3.0, 4.0))}
+    window = PlaybackWindow((["Testville"], "Bentley"))
+    questions = []
+    code = main(
+        setup(tmp_path) + ["--choose-suburbs"],
+        runner=fake_runner,
+        find=big_find,
+        window=lambda usual: window,
+        locate=lambda name: places.get(name.lower()),
+        pause=lambda seconds: None,
+        ask=lambda question: questions.append(question) or "",
+    )
+    assert code == 3
+    assert "That's a large run: 51 organisations" in questions[0]
+    assert "Stopped. Nothing was researched." in capsys.readouterr().out
+
+
+def test_a_large_run_goes_ahead_after_yes(tmp_path, capsys):
+    asked = []
+    places = {"bentley": Place("Bentley", (-3.0, 4.0))}
+    code = main(
+        setup(tmp_path) + ["--choose-suburbs"],
+        runner=fake_runner,
+        find=big_find,
+        window=lambda usual: PlaybackWindow((["Testville"], "Bentley")),
+        locate=lambda name: places.get(name.lower()),
+        pause=lambda seconds: None,
+        ask=lambda question: asked.append(question) or "y",
+    )
+    assert code == 0
+    assert asked
+    assert "[51/51]" in capsys.readouterr().out
+
+
+def test_a_busy_map_service_is_described_and_waits_double():
+    import urllib.error
+
+    from org_research_agent.cli import _map_problem
+
+    busy = urllib.error.HTTPError("https://map.test/", 502, "Bad Gateway", {}, None)
+    limited = urllib.error.HTTPError("https://map.test/", 429, "Too Many", {}, None)
+    assert _map_problem(busy) == "the map service is busy"
+    assert _map_problem(limited) == "too many searches just now"
+    assert _map_problem(TimeoutError("timed out")) == "no answer in time"
+
+
+def test_map_retries_wait_longer_each_time(tmp_path):
+    waits = []
+
+    def broken_find(lat, lon, radius_m):
+        raise OSError("down")
+
+    main(setup(tmp_path) + ["--dry-run"], find=broken_find, pause=waits.append)
+    assert waits == [15, 30, 60, 120]

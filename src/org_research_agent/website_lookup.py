@@ -247,8 +247,12 @@ def find_websites(
     search: Callable[[str, str], list[str]] = brave_search,
     read: Callable[[str], str] | None = None,
     pause: Callable[[float], None] = time.sleep,
+    progress: Callable[[int, int], None] | None = None,
 ) -> list[LookupResult]:
-    """Run find_website for each organisation, one search at a time. Nothing is saved."""
+    """Run find_website for each organisation, one search at a time. Nothing is saved.
+
+    progress, if given, is told how many are done after each organisation.
+    """
     api_key = api_key or os.environ.get(API_KEY_VARIABLE, "")
     if not api_key:
         raise WebsiteLookupError(f"No search API key. Set {API_KEY_VARIABLE} first.")
@@ -260,6 +264,8 @@ def find_websites(
         except (urllib.error.URLError, OSError, ValueError, KeyError):
             result = LookupResult(org, NOT_FOUND, 1)
         results.append(result)
+        if progress:
+            progress(len(results), len(organisations))
         if result.searches:
             pause(SEARCH_GAP_S)
     return results

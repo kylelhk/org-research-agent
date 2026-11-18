@@ -24,4 +24,5 @@ staff_signals = false
 
 [prompts]
 # Extra guidance added to the research prompt, loaded from the private file.
+# Write {suburbs} where the run's chosen suburbs should go, such as "in or near {suburbs}".
 research = "REPLACE_IN_PRIVATE_FILE"

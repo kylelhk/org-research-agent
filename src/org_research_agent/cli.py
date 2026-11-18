@@ -5,6 +5,8 @@ Examples:
     org-research --limit 3           Research the first 3 organisations only.
     org-research --no-map            Use only the hand-added list.
     org-research --find-websites     Find missing or broken websites first (needs BRAVE_API_KEY).
+    org-research --choose-suburbs    Choose the suburbs in a small window before the run.
+    org-research --suburbs "Victoria Park,Bentley"   Research these suburbs this time.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ import sys
 import time
 from collections import Counter
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -38,8 +41,25 @@ from org_research_agent.manual import (
 )
 from org_research_agent.organisation import Organisation
 from org_research_agent.osm import find_organisations
-from org_research_agent.research import DEFAULT_MAX_PAGES, STATUS_CHECK, research_organisation
+from org_research_agent.research import (
+    DEFAULT_MAX_PAGES,
+    STATUS_CHECK,
+    SUBURBS_PLACEHOLDER,
+    research_organisation,
+)
 from org_research_agent.settings import DEFAULT_SETTINGS_PATH, SettingsError, load_settings
+from org_research_agent.suburb_window import SuburbWindow, WindowUnavailableError
+from org_research_agent.suburbs import (
+    SEARCH_GAP_S,
+    Place,
+    PlaceSearchError,
+    Selection,
+    build_selection,
+    choose_suburbs,
+    locate_suburb,
+    parse_others,
+    suburb_key,
+)
 from org_research_agent.website_lookup import (
     FOUND,
     NOT_FOUND,
@@ -47,7 +67,13 @@ from org_research_agent.website_lookup import (
     find_websites,
 )
 
-MAP_ATTEMPTS = 3
+# The public map service is often busy. It asks for waits that double each time, so
+# five tries wait 15, 30, 60, and 120 seconds: under four minutes in all.
+MAP_ATTEMPTS = 5
+MAP_FIRST_WAIT_S = 15
+CANCELLED = 3
+# A run with chosen suburbs and more organisations than this asks before researching.
+LARGE_RUN = 40
 NO_LOCAL_SITE_REASON = "No website listed, and the search found none for this location."
 WIDER_SITE_NOTE = (
     "The search found a site with this name that doesn't mention your area, such as a "
@@ -75,6 +101,15 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         action="store_true",
         help="Search for missing or broken websites first. Needs BRAVE_API_KEY.",
     )
+    parser.add_argument(
+        "--choose-suburbs",
+        action="store_true",
+        help="Choose the suburbs for this run in a small window.",
+    )
+    parser.add_argument(
+        "--suburbs",
+        help="Comma-separated suburbs for this run, instead of the ones in the settings.",
+    )
     parser.add_argument("--output-dir", default="output")
     parser.add_argument("--runs-dir", default="runs")
     return parser.parse_args(argv)
@@ -88,6 +123,9 @@ def main(
     lookup: Callable[..., list] = find_websites,
     pause: Callable[[float], None] = time.sleep,
     clock: Callable[[], float] = time.monotonic,
+    window: Callable = SuburbWindow,
+    locate: Callable[[str], Place | None] = locate_suburb,
+    ask: Callable[[str], str] = input,
 ) -> int:
     args = _parse_args(argv)
 
@@ -98,32 +136,99 @@ def main(
         print(f"Error: {error}", file=sys.stderr)
         return 2
 
+    selection = _select_suburbs(args, settings, window, locate, pause)
+    if selection is None:
+        print("Cancelled. Nothing was researched.")
+        return CANCELLED
+    usual_area = settings.area
+    settings = replace(
+        settings,
+        area=replace(
+            usual_area,
+            suburbs=selection.suburbs,
+            nearby_suburbs=usual_area.nearby_suburbs if selection.includes_usual else (),
+        ),
+    )
+    area = settings.area
+    if args.choose_suburbs:
+        print("Researching. Leave this window open until the Excel list opens.\n")
+    print(f"Suburbs: {', '.join(selection.suburbs)}")
+    guidance = settings.prompts.research
+    if not selection.is_usual and SUBURBS_PLACEHOLDER not in guidance:
+        named = [name for name in usual_area.suburbs if name.lower() in guidance.lower()]
+        if named:
+            print(
+                f"Note: the research guidance in the settings names {', '.join(named)}. "
+                f"Write {SUBURBS_PLACEHOLDER} there instead, so it names each run's suburbs."
+            )
+    if manual and not selection.includes_usual:
+        print(
+            f"Your hand-added list is for {', '.join(usual_area.suburbs)}, "
+            "so it's left out of this run."
+        )
+        manual = []
+
     # The map search and website lookup are timed together, as the run's setup time.
     setup_started = clock()
     map_orgs: list[Organisation] = []
-    area = settings.area
     if args.no_map:
         pass
-    elif area.centre_lat is None or area.centre_lon is None:
-        print("No centre point in the settings, so the map search is skipped.")
+    elif not selection.centres:
+        if selection.is_usual:
+            print("No centre point in the settings, so the map search is skipped.")
+        else:
+            print("None of these suburbs was found on the map, so the map search is skipped.")
     else:
-        # The public map service often fails once and then works, so try a few times.
-        for attempt in range(1, MAP_ATTEMPTS + 1):
-            try:
-                map_orgs = find(area.centre_lat, area.centre_lon, int(area.radius_km * 1000))
-                break
-            except (OSError, ValueError) as error:
-                if attempt == MAP_ATTEMPTS:
+        found: dict[str, Organisation] = {}
+        results_total = 0
+        labels = selection.centre_labels or ()
+        for number, centre in enumerate(selection.centres):
+            label = labels[number] if number < len(labels) else "the area"
+            print(f"Map search around {label} ... ", end="", flush=True)
+            for attempt in range(1, MAP_ATTEMPTS + 1):
+                try:
+                    batch = find(centre[0], centre[1], int(area.radius_km * 1000))
+                    break
+                except (OSError, ValueError) as error:
+                    if attempt == MAP_ATTEMPTS:
+                        print("failed.")
+                        print(
+                            f"Error: the map search failed {MAP_ATTEMPTS} times "
+                            f"({_map_problem(error)}). The public map service is busy; "
+                            "wait 10 to 15 minutes and try again.",
+                            file=sys.stderr,
+                        )
+                        return 1
+                    wait = MAP_FIRST_WAIT_S * 2 ** (attempt - 1)
                     print(
-                        f"Error: the map search failed {MAP_ATTEMPTS} times "
-                        f"({type(error).__name__}). Wait a few minutes and try again.",
-                        file=sys.stderr,
+                        f"{_map_problem(error)}, trying again in {wait} seconds ... ",
+                        end="",
+                        flush=True,
                     )
-                    return 1
-                pause(10 * attempt)
+                    pause(wait)
+            print(f"{len(batch)} found.")
+            results_total += len(batch)
+            for org in batch:
+                found.setdefault(org.name.lower(), org)
+        map_orgs = sorted(found.values(), key=lambda org: org.name.lower())
+        repeats = results_total - len(map_orgs)
+        if repeats:
+            # Names are matched, so a search circle that overlaps another, or two
+            # branches with the same name, give one row.
+            print(
+                f"The map searches found {results_total} results. {repeats} "
+                f"{'name came' if repeats == 1 else 'names came'} up more than once, "
+                f"so there are {len(map_orgs)} different organisations."
+            )
 
     organisations = combine(map_orgs, manual)
-    if not args.allow_fewer:
+    if not selection.is_usual:
+        if len(organisations) < area.min_organisations:
+            print(
+                f"Note: {len(organisations)} organisations found, fewer than the usual "
+                f"minimum of {area.min_organisations}. The run continues."
+            )
+    elif not args.allow_fewer:
         try:
             check_minimum(organisations, area.min_organisations)
         except ManualListError as error:
@@ -132,17 +237,28 @@ def main(
     if args.limit:
         organisations = organisations[: args.limit]
 
-    print(
-        f"{len(organisations)} organisations to research "
-        f"({len(map_orgs)} from the map, {len(manual)} added by hand)."
-    )
+    print(_count_line(len(organisations), map_orgs, manual))
+    if (
+        args.choose_suburbs
+        and not args.dry_run
+        and not selection.is_usual
+        and len(organisations) > LARGE_RUN
+        and not _go_ahead(ask, len(organisations))
+    ):
+        print("Stopped. Nothing was researched.")
+        return CANCELLED
     found_by_search: set[str] = set()
     not_found: set[str] = set()
     wider_only: set[str] = set()
     if args.find_websites:
         places = (*area.suburbs, *area.nearby_suburbs, *area.allowed_terms, "Perth")
+        print("Looking up and checking websites. This can take a few minutes ...", flush=True)
+
+        def show(done: int, total: int) -> None:
+            print(f"\r  {done} of {total} checked", end="\n" if done == total else "", flush=True)
+
         try:
-            lookups = lookup(organisations, places)
+            lookups = lookup(organisations, places, progress=show)
         except WebsiteLookupError as error:
             print(f"Error: {error}", file=sys.stderr)
             return 2
@@ -199,7 +315,13 @@ def main(
         interrupted = True
         print("Saving the organisations finished so far.")
 
-    write_results(results, output_path, run_label=stamp, setup_seconds=setup_seconds)
+    write_results(
+        results,
+        output_path,
+        run_label=stamp,
+        setup_seconds=setup_seconds,
+        suburbs=selection.suburbs,
+    )
     fits = Counter(result.fit for result in results)
     checks = sum(result.status == STATUS_CHECK for result in results)
     cost = sum(result.cost_usd for result in results)
@@ -233,3 +355,90 @@ def main(
         print("Asked for something not allowed (see Notes): " + ", ".join(refused))
     print(f"Fetch log: {runs_dir / 'fetch-log.jsonl'}")
     return 130 if interrupted else 0
+
+
+def _map_problem(error: Exception) -> str:
+    """A short, plain reason for a failed map search."""
+    code = getattr(error, "code", None)
+    if code == 429:
+        return "too many searches just now"
+    if isinstance(code, int) and code >= 500:
+        return "the map service is busy"
+    if isinstance(error, TimeoutError) or "timed out" in str(error):
+        return "no answer in time"
+    return "no answer"
+
+
+def _go_ahead(ask: Callable[[str], str], count: int) -> bool:
+    """Ask in the Terminal before a run much larger than usual. Return means stop."""
+    try:
+        answer = ask(
+            f"That's a large run: {count} organisations, each researched one at a time, "
+            "so it takes a long time and uses more of your Claude allowance.\n"
+            "Type y and press Return to go ahead, or just press Return to stop: "
+        )
+    except EOFError:
+        return True
+    return answer.strip().lower() in {"y", "yes"}
+
+
+def _count_line(total: int, map_orgs: list, manual: list) -> str:
+    """Say where the organisations came from, counting one in both lists once."""
+    on_map = {org.name.lower() for org in map_orgs}
+    already = sum(org.name.lower() in on_map for org in manual)
+    hand_only = len(manual) - already
+    line = f"{total} organisations to research: {len(map_orgs)} from the map"
+    if manual and not hand_only:
+        everyone = "The 1" if already == 1 else f"All {already}"
+        verb = "was" if already == 1 else "were"
+        return f"{line}. {everyone} on your hand-added list {verb} among them."
+    if hand_only:
+        line += f", plus {hand_only} from your hand-added list"
+    if hand_only and already:
+        verb = "was" if already == 1 else "were"
+        line += f" ({already} more on it {verb} already found on the map)"
+    return line + "."
+
+
+def _select_suburbs(args, settings, window, locate, pause) -> Selection | None:
+    """The suburbs for this run: from the window, the --suburbs option, or the settings."""
+    area = settings.area
+    usual = area.suburbs
+    centre = (
+        (area.centre_lat, area.centre_lon)
+        if area.centre_lat is not None and area.centre_lon is not None
+        else None
+    )
+    if args.choose_suburbs:
+        try:
+            prompt = window(usual)
+        except (WindowUnavailableError, RuntimeError) as error:
+            print(f"The suburb window couldn't open ({error}), so the usual suburbs are used.")
+        else:
+            try:
+                return choose_suburbs(usual, centre, prompt, locate, pause)
+            finally:
+                prompt.close()
+    elif args.suburbs:
+        usual_keys = {suburb_key(name): name for name in usual}
+        names = parse_others(args.suburbs)
+        ticked = [usual_keys[suburb_key(n)] for n in names if suburb_key(n) in usual_keys]
+        others: list[Place | str] = []
+        for number, name in enumerate(n for n in names if suburb_key(n) not in usual_keys):
+            if number:
+                pause(SEARCH_GAP_S)
+            try:
+                place = locate(name)
+            except PlaceSearchError:
+                place = None
+            if place is None:
+                print(f"Note: {name} wasn't found in Perth, so it has no map search of its own.")
+            others.append(place or name)
+        return build_selection(usual, centre, ticked, others, locate, pause)
+    return Selection(
+        suburbs=usual,
+        centres=(centre,) if centre else (),
+        includes_usual=True,
+        is_usual=True,
+        centre_labels=(" and ".join(usual),) if centre else (),
+    )

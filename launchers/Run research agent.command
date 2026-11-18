@@ -27,19 +27,21 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 1
 fi
 
-# Ask whether to look up missing websites with Brave (only offered when a key is saved).
-EXTRA=()
+# Always look up missing websites with Brave when a key is saved.
+EXTRA=(--choose-suburbs)
 if [[ -n "$BRAVE_API_KEY" ]]; then
-  ANSWER=$(osascript -e 'button returned of (display dialog "Search for missing websites with Brave first?" & return & return & "This finds more practices to research. It sends only each practice'"'"'s name and suburb to Brave." buttons {"No", "Yes"} default button "Yes" with title "Research agent")' 2>/dev/null)
-  [[ "$ANSWER" == "Yes" ]] && EXTRA=(--find-websites)
+  EXTRA+=(--find-websites)
 else
   echo "No Brave key saved, so missing websites won't be searched for."
 fi
 
-echo "Researching. Leave this window open until the Excel list opens."
-echo
+echo "Choose the suburbs in the small window that opens."
 "$RUN" "${EXTRA[@]}"
 STATUS=$?
+if [[ $STATUS -eq 3 ]]; then
+  read -k1 "?Press any key to close."
+  exit 0
+fi
 
 LATEST=$(ls -t output/research-*.xlsx 2>/dev/null | head -1)
 echo

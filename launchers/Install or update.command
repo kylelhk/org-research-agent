@@ -7,23 +7,40 @@ export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/Library/Framewor
 
 pause() { read -k1 "?Press any key to close."; echo; }
 
-# 1. Python 3.11 or newer.
+# 1. Python 3.11 or newer, preferring one that can show the suburb window (tkinter).
+# Homebrew's Python leaves tkinter out; python.org's includes it.
+ok_version() { "$1" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; }
+has_tk() { "$1" -c 'import tkinter' >/dev/null 2>&1; }
 PYTHON=""
-for candidate in python3.13 python3.12 python3.11 python3; do
-  if command -v "$candidate" >/dev/null 2>&1 &&
-     "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
-    PYTHON="$candidate"
-    break
-  fi
+FALLBACK=""
+for name in python3.13 python3.12 python3.11 python3; do
+  for candidate in ${(f)"$(whence -ap "$name" 2>/dev/null)"}; do
+    ok_version "$candidate" || continue
+    [[ -z "$FALLBACK" ]] && FALLBACK="$candidate"
+    if has_tk "$candidate"; then
+      PYTHON="$candidate"
+      break 2
+    fi
+  done
 done
-if [[ -z "$PYTHON" ]]; then
+if [[ -z "$PYTHON" && -z "$FALLBACK" ]]; then
   echo "Python 3.11 or newer is needed. Install it from python.org (Downloads, macOS),"
   echo "then double-click this file again."
   pause; exit 1
 fi
+if [[ -z "$PYTHON" ]]; then
+  PYTHON="$FALLBACK"
+  echo "Note: this Python can't show windows, so the suburb window will be skipped and"
+  echo "the usual suburbs used. Python from python.org includes what's needed."
+fi
 echo "Using $("$PYTHON" --version)."
 
-# 2. The program, in its own folder (.venv) inside the project.
+# 2. The program, in its own folder (.venv) inside the project. If the existing folder
+# can't show windows but this Python can, it's rebuilt; it only holds installed packages.
+if [[ -x .venv/bin/python ]] && ! has_tk .venv/bin/python && has_tk "$PYTHON"; then
+  echo "Rebuilding the program's Python folder so it can show the suburb window..."
+  "$PYTHON" -m venv --clear .venv || { echo "Couldn't rebuild it."; pause; exit 1; }
+fi
 if [[ ! -x .venv/bin/python ]]; then
   echo "Creating the program's own Python folder..."
   "$PYTHON" -m venv .venv || { echo "Couldn't create it."; pause; exit 1; }

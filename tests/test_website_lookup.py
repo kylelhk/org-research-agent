@@ -237,3 +237,18 @@ def test_a_local_site_wins_over_a_wider_one():
     result = find_website(org, PLACES, "key", search=lambda q, k: urls, read=read)
     assert result.outcome == FOUND
     assert not result.wider_site_only
+
+
+def test_find_websites_reports_progress():
+    seen = []
+    orgs = [Organisation("Alpha Dental", website="https://alpha.test/"), Organisation("Beta")]
+    find_websites(
+        orgs,
+        PLACES,
+        "key",
+        search=lambda q, k: [],
+        read=lambda url: "",
+        pause=lambda s: None,
+        progress=lambda done, total: seen.append((done, total)),
+    )
+    assert seen == [(1, 2), (2, 2)]

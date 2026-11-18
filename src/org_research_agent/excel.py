@@ -171,6 +171,7 @@ def write_results(
     path: Path | str,
     run_label: str = "",
     setup_seconds: float = 0.0,
+    suburbs: tuple[str, ...] | list[str] = (),
 ) -> Path:
     """Save results as a formatted spreadsheet and return its path."""
     path = Path(path)
@@ -180,6 +181,8 @@ def write_results(
     sheet.title = "Research"
     headings = [heading for heading, _, _ in COLUMNS]
     run_text = f"Run {run_label}. " if run_label else ""
+    if suburbs:
+        run_text += f"Suburbs: {', '.join(suburbs)}. "
     _title(
         sheet,
         "Healthcare organisations: research list",

@@ -1,7 +1,7 @@
 """Tests for the research step. The agent is faked, and every name here is made up."""
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import pytest
 
@@ -15,6 +15,8 @@ from org_research_agent.research import (
     STATUS_REVIEW,
     build_prompt,
     build_schema,
+    fill_guidance,
+    join_suburbs,
     research_organisation,
 )
 from org_research_agent.settings import AreaSettings, FitSettings, PromptSettings, Settings
@@ -394,6 +396,12 @@ def test_nearby_suburb_is_accepted(tmp_path):
     assert result.status == STATUS_REVIEW
 
 
+def test_a_short_form_of_an_area_suburb_is_accepted(tmp_path):
+    result = run(FakeAgent(answer(suburb="E. Testville")), tmp_path=tmp_path)
+    assert result.suburb == "East Testville"
+    assert result.status == STATUS_REVIEW
+
+
 def test_off_site_and_profile_source_urls_are_removed(tmp_path):
     urls = [
         "https://clinic.test/",
@@ -427,3 +435,34 @@ def test_prompt_has_rules_types_and_guidance():
     assert "Never write any person's name" in prompt
     assert "Synthetic guidance for tests." in prompt
     assert "at most 6 pages" in prompt
+
+
+@pytest.mark.parametrize(
+    ("suburbs", "joined"),
+    [
+        (("Testville",), "Testville"),
+        (("Testville", "East Testville"), "Testville or East Testville"),
+        (("A", "B", "C"), "A, B or C"),
+        ((), "the research area"),
+    ],
+)
+def test_join_suburbs(suburbs, joined):
+    assert join_suburbs(suburbs) == joined
+
+
+def test_guidance_placeholder_is_filled_with_the_runs_suburbs():
+    guidance = "Prefer practices in or near {suburbs}. Keep {other} braces."
+    assert fill_guidance(guidance, ("Testville", "Southby")) == (
+        "Prefer practices in or near Testville or Southby. Keep {other} braces."
+    )
+
+
+def test_prompt_uses_the_runs_suburbs_in_the_guidance():
+    settings = replace(
+        SETTINGS,
+        area=replace(SETTINGS.area, suburbs=("Southby",)),
+        prompts=PromptSettings(research="Prefer practices near {suburbs}."),
+    )
+    prompt = build_prompt(ORG, settings, 6)
+    assert "Prefer practices near Southby." in prompt
+    assert "{suburbs}" not in prompt

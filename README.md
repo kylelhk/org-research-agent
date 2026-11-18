@@ -72,14 +72,18 @@ org-research --dry-run      # List the organisations without researching them
 org-research --limit 3      # Research the first 3 only
 org-research                # Research the full list
 org-research --find-websites  # First find missing or broken websites by search
+org-research --choose-suburbs # Choose this run's suburbs in a small window
+org-research --suburbs "Victoria Park,Bentley"  # Or name them on the command line
 ```
+
+**Choosing suburbs.** The settings file lists the usual suburbs and one map centre for them. With `--choose-suburbs`, a small window shows a tickbox for each usual suburb (all ticked) and an Others box for more, separated by commas. Typed names are tidied first: case, full stops, and spaces don't matter, short forms such as St, Saint, Mt, Nth, E, and Vic are read as the official name ("mt. lawley" becomes Mount Lawley), and a state, postcode, or repeat is dropped. Typing more than five suburbs asks first, since each adds its own map search. If the chosen suburbs give more than 40 organisations, the Terminal asks before the website lookup and research start; pressing Return alone stops the run. Organisations are matched by name, so two branches with the same name give one row. Each typed suburb is checked with OpenStreetMap's place search (Nominatim, sending only the suburb name), and must be a suburb of that name inside the Perth metropolitan area. A suburb that isn't found can still be used after a warning, but has no map search of its own; typing a suburb that already has a tickbox asks the user to use the tickbox instead. The chosen suburbs become the run's area for the suburb checks, the website search, and the map search: the usual centre when every usual suburb is ticked, otherwise a search around each chosen suburb's own centre, at the same radius. The hand-added list and the nearby suburbs belong to the usual area, so they are left out when no usual suburb is ticked. The chosen suburbs are shown in the spreadsheet's subtitle. The research guidance in the private settings can say `{suburbs}` where the suburbs belong, such as "in or near {suburbs}", and each run fills in its own suburbs, so the AI isn't told to prefer suburbs the run doesn't cover. If the guidance names the usual suburbs instead, a run with other suburbs prints a note suggesting the placeholder.
 
 The map search often fails once and then works, so it is tried up to three times.
 
 On a Mac, the `launchers` folder has three double-click files for the business owner, so no commands need typing:
 
-- **Install or update.command** creates the project's `.venv` with Python 3.11 or newer, installs the program, and checks for Claude Code, the private settings file, and a saved Brave key (without showing it). It is safe to run again after downloading a new copy.
-- **Run research agent.command** runs the agent, offers the website search when a Brave key is saved, and opens the results in Excel.
+- **Install or update.command** creates the project's `.venv` with Python 3.11 or newer, preferring one with tkinter for the suburb window (Homebrew's Python leaves it out; python.org's includes it) and rebuilding an existing `.venv` that lacks it, installs the program, and checks for Claude Code, the private settings file, and a saved Brave key (without showing it). It is safe to run again after downloading a new copy.
+- **Run research agent.command** opens the suburb window, runs the agent with the website search whenever a Brave key is saved, and opens the results in Excel. Cancel in the window stops without researching anything.
 - **Check content.command** asks for a Word file, runs `content-check` on it, and opens the results as a text file saved next to it. If `config/business-phone.private.txt` or `config/disclaimer.private.txt` exists, the business's own number and approved disclaimer are allowed.
 
 All three use the project's `.venv` if there is one.

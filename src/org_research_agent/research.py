@@ -20,7 +20,7 @@ import json
 import tempfile
 import time
 import unicodedata
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -37,6 +37,7 @@ from org_research_agent.fetcher import is_same_site
 from org_research_agent.name_check import check_contact, check_for_names, check_source_url
 from org_research_agent.organisation import UNKNOWN, Organisation
 from org_research_agent.settings import Settings
+from org_research_agent.suburbs import suburb_key
 
 DEFAULT_MAX_PAGES = 6
 MAX_ATTEMPTS = 2
@@ -215,6 +216,25 @@ def build_schema(fit_types: tuple[str, ...], max_pages: int) -> dict:
     }
 
 
+SUBURBS_PLACEHOLDER = "{suburbs}"
+
+
+def join_suburbs(suburbs: Sequence[str]) -> str:
+    """Victoria Park, or Victoria Park or East Victoria Park, or A, B or C."""
+    names = [name for name in suburbs if name]
+    if len(names) <= 1:
+        return "".join(names) or "the research area"
+    return ", ".join(names[:-1]) + " or " + names[-1]
+
+
+def fill_guidance(guidance: str, suburbs: Sequence[str]) -> str:
+    """Put this run's suburbs where the guidance says {suburbs}.
+
+    Plain replacement, not str.format, so any other braces in the guidance are kept.
+    """
+    return guidance.replace(SUBURBS_PLACEHOLDER, join_suburbs(suburbs))
+
+
 def build_prompt(
     org: Organisation, settings: Settings, max_pages: int, retry_problems: list[str] = ()
 ) -> str:
@@ -224,7 +244,7 @@ def build_prompt(
         max_pages=max_pages,
         types=", ".join(f'"{t}"' for t in settings.fit.types),
         stated=STATED,
-        guidance=settings.prompts.research,
+        guidance=fill_guidance(settings.prompts.research, settings.area.suburbs),
     )
     if retry_problems:
         prompt += RETRY_NOTE.format(reasons=", ".join(retry_problems))
@@ -310,8 +330,9 @@ def _content_problems(
 
 def _match_suburb(value: str, settings: Settings) -> str | None:
     known = (*settings.area.suburbs, *settings.area.nearby_suburbs)
+    wanted = suburb_key(value)
     for suburb in known:
-        if value.strip().lower() == suburb.lower():
+        if wanted == suburb_key(suburb):
             return suburb
     return None
 
