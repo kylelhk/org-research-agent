@@ -7,9 +7,11 @@ individual people is requested or kept.
 from __future__ import annotations
 
 import json
+import re
 import urllib.parse
 import urllib.request
 
+from org_research_agent.name_check import check_for_names
 from org_research_agent.organisation import UNKNOWN, Organisation
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
@@ -68,6 +70,32 @@ def _type_from_tags(tags: dict) -> str:
     if tags.get("amenity") in AMENITY_TYPES:
         return AMENITY_TYPES[tags["amenity"]]
     return UNKNOWN
+
+
+# Words that show a map entry is a business or service, not a person's own listing.
+BUSINESS_WORDS = {
+    "allied", "audiology", "care", "center", "centre", "chemist", "chiro", "chiropractic",
+    "clinic", "clinics", "co", "company", "counselling", "dental", "dentist", "dentistry",
+    "dentists", "doctors", "family", "gp", "group", "health", "healthcare", "hearing",
+    "hospital", "imaging", "lab", "medical", "medicine", "nursing", "optical",
+    "optometrist", "optometry", "orthodontics", "osteopathy", "partners", "pathology",
+    "pharmacy", "physio", "physiotherapy", "podiatry", "practice", "psychology",
+    "pty", "radiology", "rehab", "rehabilitation", "service", "services", "skin",
+    "speech", "studio", "surgery", "therapies", "therapy", "unit", "wellbeing", "wellness",
+}  # fmt: skip
+_PERSON_SIGNS = {"given name", "initial followed by a word", "title followed by a word"}
+
+
+def looks_like_a_person(name: str) -> bool:
+    """True for a map entry that is only a person's name, such as "Dr A. Smith".
+
+    A practitioner's own map listing would put a personal name on the list. A name with
+    a business word, such as "Smith Dental", is the business's own name and is kept.
+    """
+    words = {word.lower() for word in re.findall(r"[^\W\d_]+", name)}
+    if words & BUSINESS_WORDS:
+        return False
+    return bool(set(check_for_names(name).reasons) & _PERSON_SIGNS)
 
 
 def parse_elements(elements: list[dict]) -> list[Organisation]:

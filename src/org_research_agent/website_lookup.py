@@ -55,7 +55,7 @@ DIRECTORY_HOSTS = (
     "ratemds.com", "doctoroo.com.au", "findapharmacy.com.au", "hipages.com.au",
     "seek.com.au", "indeed.com", "au.indeed.com", "wikipedia.org", "tripadvisor.com.au",
     "nearmeau.com", "cybo.com", "wheree.com", "au.nearbymedical.com", "abr.business.gov.au",
-    "place-advisor.com", "chemistnear.me",
+    "place-advisor.com", "chemistnear.me", "australia-now.com",
 )  # fmt: skip
 # Words too common in practice names to show that a page is about this one.
 COMMON_WORDS = {

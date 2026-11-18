@@ -1,5 +1,7 @@
+import pytest
+
 from org_research_agent.organisation import UNKNOWN
-from org_research_agent.osm import build_query, parse_elements
+from org_research_agent.osm import build_query, looks_like_a_person, parse_elements
 
 ELEMENTS = [
     {"tags": {"name": "Example Dental", "amenity": "dentist", "addr:suburb": "Testville"}},
@@ -35,3 +37,19 @@ def test_parse_maps_types_suburb_and_website():
     assert orgs["Sample Physio"].website == "https://a.test"
     assert orgs["Demo Chemist"].website == "https://b.test"
     assert orgs["Demo Chemist"].suburb == UNKNOWN
+
+
+@pytest.mark.parametrize(
+    ("name", "person"),
+    [
+        ("Dr Jane Sample", True),
+        ("A. B. Sample", True),
+        ("Jane Sample", True),
+        ("Dr Sample Dental", False),
+        ("Jane Sample Physiotherapy", False),
+        ("Testvale Family Practice", False),
+        ("Pharmacy 777", False),
+    ],
+)
+def test_a_name_that_is_only_a_person_is_spotted(name, person):
+    assert looks_like_a_person(name) is person

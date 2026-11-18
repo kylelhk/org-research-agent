@@ -65,6 +65,7 @@ def test_area_must_be_mentioned_as_whole_words():
 
 def test_directories_and_social_media_are_skipped():
     assert is_directory("https://www.facebook.com/alphadental")
+    assert is_directory("https://testvale-wa.australia-now.com/")
     assert is_directory("https://www.hotdoc.com.au/medical-centres/testvale-WA-6100/alpha")
     assert not is_directory("https://alphadental.test/about")
 

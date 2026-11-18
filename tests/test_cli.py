@@ -539,3 +539,13 @@ def test_map_retries_wait_longer_each_time(tmp_path):
 
     main(setup(tmp_path) + ["--dry-run"], find=broken_find, pause=waits.append)
     assert waits == [15, 30, 60, 120]
+
+
+def test_a_map_entry_named_after_a_person_is_left_out(tmp_path, capsys):
+    def find_with_person(lat, lon, radius_m):
+        return [*fake_find(lat, lon, radius_m), Organisation("Dr A. B. Sample", "dentist")]
+
+    main(setup(tmp_path) + ["--dry-run"], runner=fake_runner, find=find_with_person)
+    output = capsys.readouterr().out
+    assert "1 map entry named after a person left out" in output
+    assert "Sample" not in output

@@ -40,7 +40,7 @@ from org_research_agent.manual import (
     load_manual,
 )
 from org_research_agent.organisation import Organisation
-from org_research_agent.osm import find_organisations
+from org_research_agent.osm import find_organisations, looks_like_a_person
 from org_research_agent.research import (
     DEFAULT_MAX_PAGES,
     STATUS_CHECK,
@@ -221,6 +221,14 @@ def main(
                 f"so there are {len(map_orgs)} different organisations."
             )
 
+    # A practitioner's own map listing is only a personal name, so it stays off the list.
+    people = [org for org in map_orgs if looks_like_a_person(org.name)]
+    if people:
+        map_orgs = [org for org in map_orgs if org not in people]
+        print(
+            f"{len(people)} map {'entry' if len(people) == 1 else 'entries'} named after a "
+            "person left out, to keep personal details off the list."
+        )
     organisations = combine(map_orgs, manual)
     if not selection.is_usual:
         if len(organisations) < area.min_organisations:
